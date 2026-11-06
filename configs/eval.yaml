@@ -1,0 +1,47 @@
+models:
+  - aligned
+  - drifted
+  - resta
+  - wiseft
+  - ctheta
+  - safelora
+  - cg_project
+  - cg_uniform
+  - cg_exclude
+  - cg_fisher
+  - cg_distributed
+  - cg_random
+
+benchmarks:
+  - harmbench
+  - advbench
+  - sorrybench
+  - domain_harmful
+  - xstest_safe
+  - orbench_hard
+  - domain_benign
+  - medmcqa_validation
+  - medqa_test
+  - pubmedqa_labeled
+  - mmlu_non_medical
+
+generation:
+  max_new_tokens_safety: 256
+  max_new_tokens_mcq: 32
+  batch_size: 8
+  temperature: 0.0
+  do_sample: false
+  seed: 0
+  use_chat_template: true
+  include_system_preamble: false
+
+judge:
+  primary: wildguard
+  secondary: string_match
+  guard_model: allenai/wildguard
+  auditkit_guard: null
+  human_audit_per_model: 100
+
+bootstrap_resamples: 1000
+bootstrap_ci: 0.95
+output_dir: artifacts/eval

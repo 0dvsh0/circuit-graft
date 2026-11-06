@@ -1,0 +1,53 @@
+output_dir: artifacts/data
+
+sft:
+  source: medmcqa
+  train_split: train
+  validation_split: validation
+  max_train_rows: 20000
+  max_validation_rows: 1000
+  answer_format: "Answer: {letter}. Explanation: {explanation}"
+  require_explanation: true
+  min_explanation_chars: 20
+
+eval:
+  medmcqa_validation: 1000
+  medqa_test: 500
+  pubmedqa_labeled: 500
+  mmlu_non_medical: 1000
+  harmbench: 200
+  advbench: 200
+  sorrybench: 440
+  wildjailbreak: 250
+  xstest_safe: 250
+  orbench_hard: 300
+  domain_benign: 300
+  domain_harmful: 150
+  safety_pairs: 256
+  domain_pairs: 256
+  seed: 0
+
+curate:
+  generator_model: cohere_chat/c4ai-aya-expanse-32b
+  judge_model: cohere_chat/c4ai-aya-expanse-32b
+  tasks: [qa, adversarial_qa]
+  min_reward: 0.6
+  max_hallucination: 0.4
+  human_verify_fraction: 1.0
+  pairs_human_verify_fraction: 0.1
+  push_rejected: true
+  seed: 0
+
+decontam:
+  ngram_size: 13
+  embedding_model: sentence-transformers/all-MiniLM-L6-v2
+  embedding_threshold: 0.9
+  use_embeddings: true
+
+pairs:
+  safety_source: beavertails
+  domain_source: medmcqa
+  max_len_diff_tokens: 2
+  require_single_token_answers: true
+  max_seq_len: 1024
+  include_system_preamble: false

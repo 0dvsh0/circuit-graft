@@ -1,0 +1,70 @@
+{
+  "toolkit": "safetune",
+  "status": "ok",
+  "proxy": true,
+  "model": "HuggingFaceTB/SmolLM-135M-Instruct",
+  "device": "cpu",
+  "dtype": "float32",
+  "started_at": "2026-11-05T17:10:23.720792+00:00",
+  "finished_at": "2026-11-05T17:10:38.058432+00:00",
+  "wall_clock_s": 14.337,
+  "error_type": null,
+  "error": null,
+  "details": {
+    "num_units": 32,
+    "num_layers": 20,
+    "unit_ids_head": [
+      "blocks.11.mlp",
+      "blocks.29.mlp",
+      "blocks.28.mlp",
+      "blocks.12.mlp",
+      "blocks.24.mlp",
+      "blocks.7.mlp",
+      "blocks.19.mlp",
+      "blocks.18.mlp"
+    ],
+    "target_modules": [
+      "down_proj",
+      "gate_proj",
+      "k_proj",
+      "o_proj",
+      "q_proj",
+      "up_proj",
+      "v_proj"
+    ],
+    "layer_subset": [
+      2,
+      6,
+      7,
+      8,
+      10,
+      11,
+      12,
+      13,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      23,
+      24,
+      25,
+      27,
+      28,
+      29
+    ],
+    "raw_output_path": "D:\\coding\\hackathon\\circuit-graft\\results\\d1\\smoke_proxy\\safetune_eap_raw\\eap_scores.json",
+    "metadata_keys": [
+      "extra",
+      "granularity",
+      "ig_steps",
+      "intervention",
+      "method"
+    ],
+    "prompts": {
+      "harmful": 4,
+      "harmless": 4
+    }
+  }
+}

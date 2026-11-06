@@ -1,0 +1,9 @@
+method: ctheta
+model: drifted
+# Must be the identical circuit file consumed by every CircuitGraft config.
+source_circuit: artifacts/discover/safety/circuit_info.json
+params:
+  strength: 1.0
+sweep:
+  strength: [0.25, 0.5, 1.0, 1.5]
+output_dir: artifacts/baselines

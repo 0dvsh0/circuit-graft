@@ -1,0 +1,8 @@
+method: task_arith
+model: drifted
+source_circuit: null
+params:
+  alpha: 1.0
+sweep:
+  alpha: [0.5, 1.0]
+output_dir: artifacts/baselines

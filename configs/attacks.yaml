@@ -1,0 +1,19 @@
+types: [abliterate, harmful_ft, quantize]
+models: [aligned, drifted, resta, cg_project, cg_distributed]
+output_dir: artifacts/attacks
+
+abliteration:
+  modes: [weight_orthogonalize, runtime_ablate]
+  fit_harmful: 200
+  fit_harmless: 200
+
+harmful_ft:
+  steps: [50, 100, 200]
+  lr: 1.0e-4
+  examples: 100
+
+quant:
+  backends: [nf4, int8]
+  circuit_aware: true
+  bits: 4
+  high_fraction: 0.3

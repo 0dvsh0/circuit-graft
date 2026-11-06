@@ -1,0 +1,17 @@
+name: cg_random
+selection: random_matched
+overlap_strategy: svd_project
+delta_source: alignment
+k_s: 0.05
+k_d: 0.05
+alpha: 0.5
+alpha_o: 1.0
+svd_energy: 0.9
+svd_max_rank: 16
+random_seed: 0
+# Path to the selection JSON of cg_project; random_matched copies its
+# per-layer / per-kind histogram.
+random_reference: artifacts/graft/cg_project/selection.json
+safety_scores: artifacts/discover/safety/scores.json
+domain_scores: artifacts/discover/domain/scores.json
+output_dir: artifacts/graft

@@ -1,0 +1,11 @@
+method: resta
+model: drifted
+source_circuit: null
+params:
+  alpha: 0.25
+  dare: true
+  dare_drop_rate: 0.3
+  device: cpu
+sweep:
+  alpha: [0.1, 0.25, 0.4]
+output_dir: artifacts/baselines

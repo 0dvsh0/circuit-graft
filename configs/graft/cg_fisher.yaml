@@ -1,0 +1,14 @@
+name: cg_fisher
+selection: topk
+overlap_strategy: fisher_gate
+delta_source: alignment
+k_s: 0.05
+k_d: 0.05
+alpha: 0.5
+alpha_o: 1.0
+gamma: 1.0
+random_seed: 0
+safety_scores: artifacts/discover/safety/scores.json
+domain_scores: artifacts/discover/domain/scores.json
+fisher_path: artifacts/graft/fisher/domain_fisher.safetensors
+output_dir: artifacts/graft

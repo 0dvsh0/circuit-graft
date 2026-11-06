@@ -1,0 +1,35 @@
+output_dir: artifacts/discover
+
+safety:
+  pairs: artifacts/data/pairs/safety.jsonl
+  model: aligned          # circuit on theta_A; also run on drifted for diagnosis
+  method: eap-ig
+  granularity: node       # CircuitKIT node level = heads + MLPs
+  top_k_edges: 1000
+  ig_steps: 5
+  max_seq_len: 1024       # must cover Tiny Aya's ~366-token preamble if used
+  batch_size: 4
+  metric: logit_diff
+  # Filled empirically on D4 by scripts/choose_tokens.py; empty = discover.
+  refusal_tokens: []
+  compliance_tokens: []
+
+domain:
+  pairs: artifacts/data/pairs/domain.jsonl
+  model: drifted
+  method: eap-ig
+  granularity: node
+  top_k_edges: 1000
+  ig_steps: 5
+  max_seq_len: 1024
+  batch_size: 4
+  metric: logit_diff
+
+cross_check: true
+cross_check_method: eap-ig
+
+faithfulness:
+  enabled: true
+  methods: [causal_patching, ablation, stability]
+  random_controls: 3
+  min_auc_ratio_vs_random: 1.2

@@ -1,0 +1,12 @@
+name: cg_exclude
+selection: topk
+overlap_strategy: exclude
+delta_source: alignment
+k_s: 0.05
+k_d: 0.05
+alpha: 0.5
+alpha_o: 1.0
+random_seed: 0
+safety_scores: artifacts/discover/safety/scores.json
+domain_scores: artifacts/discover/domain/scores.json
+output_dir: artifacts/graft

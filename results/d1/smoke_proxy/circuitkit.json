@@ -1,0 +1,31 @@
+{
+  "toolkit": "circuitkit",
+  "status": "ok",
+  "proxy": true,
+  "model": "HuggingFaceTB/SmolLM-135M-Instruct",
+  "device": "cpu",
+  "dtype": "float32",
+  "started_at": "2026-11-05T17:10:39.275147+00:00",
+  "finished_at": "2026-11-05T17:11:05.095095+00:00",
+  "wall_clock_s": 25.82,
+  "error_type": null,
+  "error": null,
+  "details": {
+    "task": "greater_than",
+    "algorithm": "eap-ig",
+    "level": "node",
+    "num_nodes": 135,
+    "top_nodes": {
+      "MLP 0": 1.623232364654541,
+      "A24.6": 0.47587665915489197,
+      "A23.1": 0.2141544222831726,
+      "A20.6": 0.16891129314899445,
+      "A23.2": 0.13261811435222626,
+      "A23.0": 0.10483187437057495,
+      "A27.3": 0.10047958046197891,
+      "MLP 13": 0.08750572055578232
+    },
+    "artifact_path": "D:\\coding\\hackathon\\circuit-graft\\results\\d1\\smoke_proxy\\circuitkit_greater_than.pt",
+    "n_examples": 4
+  }
+}

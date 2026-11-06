@@ -1,0 +1,24 @@
+{
+  "toolkit": "auditkit",
+  "status": "ok",
+  "proxy": true,
+  "model": "HuggingFaceTB/SmolLM-135M-Instruct",
+  "device": "cpu",
+  "dtype": "float32",
+  "started_at": "2026-11-05T17:11:06.380495+00:00",
+  "finished_at": "2026-11-05T17:11:16.987592+00:00",
+  "wall_clock_s": 10.607,
+  "error_type": null,
+  "error": null,
+  "details": {
+    "run_id": "f34e8f9c9c6c3dd4",
+    "fingerprint": "f34e8f9c9c6c3dd4",
+    "headline": {
+      "nonempty": 1.0
+    },
+    "num_predictions": 4,
+    "failed_count": 0,
+    "errors": [],
+    "num_samples": 4
+  }
+}

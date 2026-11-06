@@ -1,0 +1,51 @@
+{
+  "toolkit": "curatorkit",
+  "status": "ok",
+  "proxy": true,
+  "model": "HuggingFaceTB/SmolLM-135M-Instruct",
+  "device": "cpu",
+  "dtype": "float32",
+  "started_at": "2026-11-05T17:11:18.083745+00:00",
+  "finished_at": "2026-11-05T17:11:18.208747+00:00",
+  "wall_clock_s": 0.125,
+  "error_type": null,
+  "error": null,
+  "details": {
+    "passed": 7,
+    "rejected": 0,
+    "stage_counts": {
+      "JSONLReader": {
+        "output_count": 8,
+        "rejected_count": 0
+      },
+      "ExactDeduplicator": {
+        "input_count": 8,
+        "output_count": 7
+      },
+      "TextCleaner": {
+        "input_count": 7,
+        "output_count": 7
+      },
+      "MaxSamplesTruncator": {
+        "input_count": 7,
+        "output_count": 7
+      },
+      "AlpacaExporter": {
+        "exported_count": 7
+      }
+    },
+    "wall_clock_seconds": 0.01600000000325963,
+    "output_dir": "D:\\coding\\hackathon\\circuit-graft\\results\\d1\\smoke_proxy\\curator_run",
+    "exported_files": [
+      "README.md",
+      "checksums.txt",
+      "corpus.jsonl",
+      "dataset_card.md",
+      "lexsi_provenance.json",
+      "manifest.json",
+      "rejected.jsonl",
+      "sft_alpaca.jsonl"
+    ],
+    "summary": "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  passed   :        7\n  rejected :        0\n  time     :     0.0s\n  output   : D:\\coding\\hackathon\\circuit-graft\\results\\d1\\smoke_proxy\\curator_run\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+  }
+}

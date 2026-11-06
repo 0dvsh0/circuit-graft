@@ -1,0 +1,11 @@
+method: safelora
+model: drifted
+source_circuit: null
+# Safe LoRA needs the SFT adapter from S2, not only the merged checkpoint.
+adapter_path: artifacts/drift/scenarioA_seed0/adapter
+params:
+  alpha: 0.5
+  threshold: 0.5
+sweep:
+  threshold: [0.4, 0.5]
+output_dir: artifacts/baselines

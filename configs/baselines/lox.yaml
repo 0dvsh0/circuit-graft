@@ -1,0 +1,7 @@
+method: lox
+model: drifted
+source_circuit: null
+params:
+  rank: 64
+  extrapolation_factor: 1.5
+output_dir: artifacts/baselines
