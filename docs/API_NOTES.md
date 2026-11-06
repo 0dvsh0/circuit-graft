@@ -1,6 +1,6 @@
 # API notes - installed toolkit inspection
 
-**Inspection date:** 2026-11-05
+**Inspection date:** 2026-11-05; discovery additions verified 2026-11-06
 **Environment:** Python 3.12.15, Windows 11, CPU-only (AMD Radeon RX 6600,
 no CUDA). Installed with one virtual environment; no dependency split was
 needed.
@@ -267,7 +267,46 @@ iteration/containment over node names. Node names observed on a proxy model
 are `A{L}.{H}` and `MLP {L}`.
 
 `discover` writes the artifact at `output_path`, so always pass an explicit
-path; the default writes into the current working directory.
+path; the default writes into the current working directory. The score side-car
+is `<output_path stem>_scores.json` and stores the score map under the
+`node_scores` key (not `scores` or `components`).
+
+### Custom contrastive tasks
+
+```python
+from circuitkit.tasks import GenericTaskSpec
+
+spec = GenericTaskSpec.from_jsonl(
+    path="pairs.jsonl",
+    schema={
+        "prompt": "clean_prompt",
+        "answer": "answer",
+        "corrupted": "corrupted_prompt",
+        "corrupted_answer": "corrupted_answer",
+    },
+    name="cg_safety_<hash>",
+    task_type="classification",
+)
+```
+
+`GenericTaskSpec` natively reads explicit `corrupted_prompt` /
+`corrupted_answer` columns, so no synthetic corruption strategy is needed for
+safety pairs. Task names are registered in a process-global dict and duplicate
+registration raises `ValueError`; the runner derives the name from the pair-file
+hash and reuses a matching registration.
+
+### Faithfulness pillars
+
+`ck.faithfulness(model, circuit, task, pillars=..., n_examples=..., ...)` valid
+pillar names are:
+
+```text
+patching, ablation, baselines, robustness, stability, generalization,
+intervention_reliability
+```
+
+`causal_patching` is **not** a valid pillar name; map it to `patching`. The
+returned `FaithfulnessReport` has `.to_json(path)`.
 
 ### Quantization
 
@@ -401,8 +440,10 @@ are the artifacts the specification requires us to retain and publish.
    - CircuitKIT: `A{L}.{H}`, `MLP {L}`.
    - SafeTune EAP: `blocks.{L}.attn.head{H}`, `blocks.{L}.mlp`.
    - CircuitGraft: `L{l}.H{h}`, `L{l}.MLP`.
-   The adapter between these three namespaces is not written yet. It must be
-   tested by round-tripping every node in a real discovery.
+   `circuitgraft.discover.overlap` converts all three namespaces and validates
+   component ranges against `Cohere2Layout`. It is unit-tested by round-tripping
+   every component, but has not yet been exercised on a real Tiny Aya discovery
+   because G0 model access is still blocked.
 
 2. **`apply_ctheta` is coarser than the CircuitGraft mask.** See the SafeTune
    section. This is the largest unresolved threat to the fairness of the

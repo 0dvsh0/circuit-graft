@@ -217,6 +217,59 @@ That is acceptable for CPU tests and high-RAM GPU runtimes, but a Tiny Aya run
 needs roughly 3 x 6 GB in bf16 plus the output. A streaming writer is still a
 D2/D6 task; do not claim the pipeline is memory-optimal.
 
+## 2026-11-06 - S4 discovery runner and SafeTune EAP adapter
+
+**Goal:** connect canonical pair files to CircuitKIT and SafeTune, write scores
+in the CircuitGraft namespace, and make discovery a reproducible staged run.
+
+**Commands:**
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q
+.venv\Scripts\ruff.exe check src tests scripts
+# all configs
+Get-ChildItem configs -Recurse -Filter *.yaml | ForEach-Object { cg config-check $_.FullName }
+```
+
+**Outcome:** `93 passed`; ruff clean; all 18 configs validate. No GPU or Tiny
+Aya run was possible (gated access still 403), so this is implementation
+evidence only.
+
+**Added:**
+
+- `discover/safetune_eap.py`: canonical prompt extraction from pair JSONL,
+  SafeTune `CircuitInfo` score extraction with explicit fallback order
+  (`raw_output_path` -> activation correlation -> unit ids -> expanded layer
+  suggestions), canonical score writing, coarse layer/module mask, and
+  serialisation of SafeTune's own `CircuitInfo`.
+- `discover/circuitkit_runner.py`: `GenericTaskSpec.from_jsonl` registration
+  (hash-named, process-safe), `ck.load_model` + node-level `ck.discover`,
+  canonical scores, selected-node mask, optional faithfulness, SafeTune
+  cross-check, multi-budget overlap reports, `summary.json`, manifest and
+  idempotency.
+- `tests/test_safetune_eap.py` and `tests/test_circuitkit_runner.py`.
+
+**Fixes / API details:**
+
+1. CircuitKIT's score side-car uses the key `node_scores`; the shared score
+   reader now accepts it.
+2. CircuitKIT calls the per-head level `node`, while SafeTune EAP calls the
+   same level `head`. The cross-check maps `node -> head`; passing `node`
+   directly would be rejected by SafeTune.
+3. Faithfulness pillar `causal_patching` is invalid upstream; the valid name is
+   `patching`. Config defaults and `discover.yaml` were corrected, and
+   `FaithfulnessConfig` now validates pillar names.
+4. Added `n_examples`, `sparsity` and `overlap_fractions` to discovery configs
+   and `n_examples` to faithfulness config.
+
+**Limitations:**
+
+- The runner has only been exercised with fake CircuitKIT objects and CPU
+  tests. Its first real-model run is the G0/Tiny Aya smoke.
+- Faithfulness exceptions are recorded in `summary.json` and the stage
+  continues. The report stage must not quote a circuit without a completed
+  faithfulness report; this is an explicit later check, not a silent pass.
+
 ## Open items
 
 1. Human lead accepts both Tiny Aya licences.
@@ -224,7 +277,8 @@ D2/D6 task; do not claim the pipeline is memory-optimal.
    `Cohere2Layout` and verify the tokenizer/chat-template length.
 3. Run `scripts/d1_smoke.py --device cuda` on Colab/Kaggle and archive
    `results/d1/smoke/` as the G0 evidence.
-4. Initialize git, commit the D1 tree, then freeze
-   `docs/PREREGISTRATION.md` before any Phase 4 experiment.
-5. Implement the missing stage modules (data, drift, discovery, baselines,
-   eval, attacks, report, publish) and their tests.
+4. Keep `docs/PREREGISTRATION.md` DRAFT until G0 is resolved; review, freeze
+   and commit it before any Phase 4 experiment.
+5. Implement the remaining stage modules (data, drift, baselines, eval,
+   attacks, report, publish) and their tests. Discovery is implemented but not
+   yet run on Tiny Aya.

@@ -7,6 +7,8 @@ safety:
   granularity: node       # CircuitKIT node level = heads + MLPs
   top_k_edges: 1000
   ig_steps: 5
+  n_examples: 256
+  sparsity: 0.3
   max_seq_len: 1024       # must cover Tiny Aya's ~366-token preamble if used
   batch_size: 4
   metric: logit_diff
@@ -21,6 +23,8 @@ domain:
   granularity: node
   top_k_edges: 1000
   ig_steps: 5
+  n_examples: 256
+  sparsity: 0.3
   max_seq_len: 1024
   batch_size: 4
   metric: logit_diff
@@ -28,8 +32,12 @@ domain:
 cross_check: true
 cross_check_method: eap-ig
 
+# Reported overlap budgets (fractions of the 592-component node space).
+overlap_fractions: [0.05, 0.1, 0.2, 0.3]
+
 faithfulness:
   enabled: true
-  methods: [causal_patching, ablation, stability]
+  methods: [patching, ablation, stability]
+  n_examples: 64
   random_controls: 3
   min_auc_ratio_vs_random: 1.2

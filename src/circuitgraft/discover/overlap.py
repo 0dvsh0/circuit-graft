@@ -162,7 +162,7 @@ def read_score_payload(path: str | Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError(f"{path}: expected a JSON object, got {type(payload).__name__}")
 
-    for key in ("components", "scores"):
+    for key in ("components", "scores", "node_scores"):
         value = payload.get(key)
         if isinstance(value, dict):
             return value

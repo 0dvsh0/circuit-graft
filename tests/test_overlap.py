@@ -75,6 +75,13 @@ def test_read_score_payload_shapes(tmp_path) -> None:
     )
     assert read_score_payload(nodes) == {"A0.0": 2.0}
 
+    circuitkit = tmp_path / "circuitkit_scores.json"
+    circuitkit.write_text(
+        json.dumps({"node_scores": {"A0.0": 4.0}, "task": "greater_than"}),
+        encoding="utf-8",
+    )
+    assert read_score_payload(circuitkit) == {"A0.0": 4.0}
+
     flat = tmp_path / "flat.json"
     flat.write_text(json.dumps({"L0.H0": 3.0, "stage": "discover"}), encoding="utf-8")
     assert read_score_payload(flat) == {"L0.H0": 3.0}

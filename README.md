@@ -24,7 +24,8 @@ The goal is to recover safety without throwing away domain competence.
 | Config schemas and run manifests | implemented |
 | D1 smoke runner for all four toolkits | implemented; proxy mechanics passed, Tiny Aya G0 pending gated access |
 | S6 checkpoint pipeline and circuit namespace adapters | implemented, CPU-tested |
-| Data curation, drift, discovery, baselines, eval, attacks, report, publish stages | D2–D8 work; not yet run |
+| S4 discovery runner (CircuitKIT primary + SafeTune cross-check) | implemented, CPU-tested; not yet run on Tiny Aya |
+| Data curation, drift, baselines, eval, attacks, report, publish stages | D2-D8 work; not yet run |
 
 ## Setup
 
@@ -119,7 +120,7 @@ src/circuitgraft/
   components.py          Cohere2 component <-> weight-slice mapping (GQA aware)
   config.py              pydantic schemas, YAML merging, config hashing
   registry.py            manifests, hashing, idempotency, HF upload helpers
-  discover/              overlap.py now; CircuitKIT / SafeTune runners next
+  discover/              overlap.py, safetune_eap.py, circuitkit_runner.py
   graft/                 select.py, protect.py, fisher.py, graft.py, pipeline.py
   data/                  pair validation and decontamination
   eval/stats.py          bootstrap CIs, McNemar, Holm, kappa

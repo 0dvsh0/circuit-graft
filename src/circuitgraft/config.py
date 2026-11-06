@@ -271,6 +271,8 @@ class SafetyDiscoveryConfig(StrictModel):
     granularity: str = "node"
     top_k_edges: int = 1000
     ig_steps: int = 5
+    n_examples: int = 256
+    sparsity: float = 0.3
     max_seq_len: int = 1024
     batch_size: int = 4
     metric: str = "logit_diff"
@@ -285,6 +287,8 @@ class DomainDiscoveryConfig(StrictModel):
     granularity: str = "node"
     top_k_edges: int = 1000
     ig_steps: int = 5
+    n_examples: int = 256
+    sparsity: float = 0.3
     max_seq_len: int = 1024
     batch_size: int = 4
     metric: str = "logit_diff"
@@ -293,10 +297,35 @@ class DomainDiscoveryConfig(StrictModel):
 class FaithfulnessConfig(StrictModel):
     enabled: bool = True
     methods: list[str] = Field(
-        default_factory=lambda: ["causal_patching", "ablation", "stability"]
+        default_factory=lambda: ["patching", "ablation", "stability"]
     )
+    n_examples: int = 64
     random_controls: int = 3
     min_auc_ratio_vs_random: float = 1.2
+
+    @field_validator("methods")
+    @classmethod
+    def _known_pillars(cls, value: list[str]) -> list[str]:
+        # CircuitKIT evaluation pillar names (full.py, PILLARS_VALID).
+        valid = {
+            "patching",
+            "ablation",
+            "baselines",
+            "robustness",
+            "stability",
+            "generalization",
+            "intervention_reliability",
+        }
+        unknown = sorted(set(value) - valid)
+        if unknown:
+            raise ValueError(f"unknown faithfulness pillars: {unknown}; valid: {sorted(valid)}")
+        return value
+
+    @model_validator(mode="after")
+    def _enabled_needs_pillars(self) -> FaithfulnessConfig:
+        if self.enabled and not self.methods:
+            raise ValueError("faithfulness.methods must not be empty when enabled")
+        return self
 
 
 class DiscoverConfig(CommonConfig):
@@ -305,7 +334,20 @@ class DiscoverConfig(CommonConfig):
     cross_check: bool = True
     cross_check_method: str = "eap-ig"
     faithfulness: FaithfulnessConfig = Field(default_factory=FaithfulnessConfig)
+    overlap_fractions: list[float] = Field(
+        default_factory=lambda: [0.05, 0.1, 0.2, 0.3]
+    )
     output_dir: str = "artifacts/discover"
+
+    @field_validator("overlap_fractions")
+    @classmethod
+    def _valid_fractions(cls, value: list[float]) -> list[float]:
+        if not value:
+            raise ValueError("overlap_fractions must not be empty")
+        for fraction in value:
+            if not 0.0 < fraction <= 1.0:
+                raise ValueError(f"overlap fraction must be in (0, 1], got {fraction}")
+        return value
 
 
 # ---------------------------------------------------------------------------
