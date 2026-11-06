@@ -99,7 +99,6 @@ def _tiny_module(layout: Cohere2Layout) -> torch.nn.Module:
     root.add_module("model", model)
     layers = torch.nn.ModuleList()
     model.add_module("layers", layers)
-    generator = torch.Generator().manual_seed(0)
     for _ in range(layout.num_layers):
         layer = torch.nn.Module()
         layers.append(layer)
@@ -113,19 +112,15 @@ def _tiny_module(layout: Cohere2Layout) -> torch.nn.Module:
             "v_proj": (layout.num_kv_heads * layout.head_dim, layout.hidden_size),
             "o_proj": (layout.hidden_size, layout.num_heads * layout.head_dim),
         }
-        for name, shape in shapes.items():
-            attn.register_parameter(
-                name, torch.nn.Parameter(torch.randn(shape, generator=generator))
-            )
+        for name, (out_features, in_features) in shapes.items():
+            attn.add_module(name, torch.nn.Linear(in_features, out_features, bias=False))
         mlp_shapes = {
             "gate_proj": (layout.intermediate_size, layout.hidden_size),
             "up_proj": (layout.intermediate_size, layout.hidden_size),
             "down_proj": (layout.hidden_size, layout.intermediate_size),
         }
-        for name, shape in mlp_shapes.items():
-            mlp.register_parameter(
-                name, torch.nn.Parameter(torch.randn(shape, generator=generator))
-            )
+        for name, (out_features, in_features) in mlp_shapes.items():
+            mlp.add_module(name, torch.nn.Linear(in_features, out_features, bias=False))
     return root
 
 

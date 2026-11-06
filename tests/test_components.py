@@ -17,6 +17,15 @@ def test_component_parse_round_trip() -> None:
         Component.parse("L0.MLP.H1")
 
 
+def test_editable_tensor_names_are_parameter_names(layout: Cohere2Layout) -> None:
+    # HF ``named_parameters`` names end in ``.weight``; the synthetic helpers
+    # and the real checkpoint loader must agree on this exact convention.
+    assert layout.attn_tensor(0, "q_proj") == "model.layers.0.self_attn.q_proj.weight"
+    assert layout.mlp_tensor(1, "down_proj") == "model.layers.1.mlp.down_proj.weight"
+    for name in layout.editable_tensor_names():
+        assert name.endswith(".weight")
+
+
 def test_all_components_partition_every_editable_tensor(layout: Cohere2Layout) -> None:
     layout.validate_partition()
     assert set(layout.edits_by_tensor(layout.all_components())) == set(

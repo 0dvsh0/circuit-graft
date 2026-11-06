@@ -163,12 +163,12 @@ class Cohere2Layout:
     def attn_tensor(self, layer: int, name: str) -> str:
         if name not in ATTENTION_TENSORS:
             raise ValueError(name)
-        return f"{self.layer_prefix(layer)}.self_attn.{name}"
+        return f"{self.layer_prefix(layer)}.self_attn.{name}.weight"
 
     def mlp_tensor(self, layer: int, name: str) -> str:
         if name not in MLP_TENSORS:
             raise ValueError(name)
-        return f"{self.layer_prefix(layer)}.mlp.{name}"
+        return f"{self.layer_prefix(layer)}.mlp.{name}.weight"
 
     def editable_tensor_names(self) -> list[str]:
         names: list[str] = []
@@ -491,7 +491,12 @@ class Cohere2Layout:
         except (IndexError, ValueError) as exc:
             raise ValueError(f"not an editable Cohere2 tensor: {tensor}") from exc
         self._check_layer(layer)
-        if len(parts) != 5 or parts[0] != self.prefix or parts[1] != "layers":
+        if (
+            len(parts) != 6
+            or parts[0] != self.prefix
+            or parts[1] != "layers"
+            or parts[5] != "weight"
+        ):
             raise ValueError(f"not an editable Cohere2 tensor: {tensor}")
         if parts[3] == "self_attn" and parts[4] in ATTENTION_TENSORS:
             return layer, "attn", parts[4]

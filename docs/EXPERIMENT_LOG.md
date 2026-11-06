@@ -174,6 +174,49 @@ discrepancies that affect later stages. The most important are:
 not frozen or committed yet and must not be treated as pre-registration until
 that happens.
 
+## 2026-11-06 - S6 checkpoint pipeline and circuit adapters
+
+**Goal:** make the graft stage consume real HF checkpoints and discovery
+artifacts without relying on the synthetic names used by the first tests.
+
+**Commands:**
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q
+.venv\Scripts\ruff.exe check src tests scripts
+```
+
+**Outcome:** `74 passed`; ruff clean. No experiment was run.
+
+**Bugs found and fixed:**
+
+1. **Editable tensor names lacked `.weight`.** `Cohere2Layout.attn_tensor` /
+   `mlp_tensor` returned `model.layers.0.self_attn.q_proj`, while a real HF
+   checkpoint (and `named_parameters()`) uses `...q_proj.weight`. The synthetic
+   tests hid this. The layout now returns full parameter names, and a
+   regression test asserts the `.weight` suffix.
+2. **`Manifest.python` used a string as `default_factory`.** `Field(
+   default_factory=sys.version.split()[0])` raised `TypeError: 'str' object is
+   not callable` on the first real manifest. Fixed with a lambda.
+3. The Fisher test's synthetic module registered parameters directly on
+   `self_attn`; it now uses `nn.Linear` submodules so its names match a real
+   model.
+
+**Added:**
+
+- `discover/overlap.py`: CircuitKIT/SafeTune/CircuitGraft namespace conversion,
+  score-file validation, Jaccard and S/D/O overlap reports, SafeTune
+  layer/module suggestion expansion.
+- `graft/pipeline.py`: local/HF checkpoint resolution, safetensors loading
+  (single and sharded), canonical score loading, graft execution, checkpoint
+  saving, `graft_stats.json` and manifest lineage.
+- `tests/test_overlap.py` and `tests/test_graft_pipeline.py`.
+
+**Known limitation:** the S6 pipeline loads three full state dicts into RAM.
+That is acceptable for CPU tests and high-RAM GPU runtimes, but a Tiny Aya run
+needs roughly 3 x 6 GB in bf16 plus the output. A streaming writer is still a
+D2/D6 task; do not claim the pipeline is memory-optimal.
+
 ## Open items
 
 1. Human lead accepts both Tiny Aya licences.

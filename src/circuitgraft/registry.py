@@ -41,7 +41,7 @@ class Manifest(BaseModel):
     finished_at: str | None = None
     wall_clock_s: float | None = None
     platform: str = Field(default_factory=platform.platform)
-    python: str = Field(default_factory=sys.version.split()[0])
+    python: str = Field(default_factory=lambda: sys.version.split()[0])
     device: str | None = None
     gpu: str | None = None
     status: str = "running"
