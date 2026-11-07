@@ -699,25 +699,36 @@ def run_all(args: argparse.Namespace) -> int:
     output_dir = _output_dir(args)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    preflight = _run_child("preflight", args) if args.preflight_subprocess else None
-    if preflight is None:
-        preflight = _base_payload("preflight", args)
-        started = time.perf_counter()
+    preflight = None
+    if getattr(args, "skip_existing", False) and (output_dir / "preflight.json").exists():
         try:
-            preflight["details"] = check_preflight(args)
-            preflight["status"] = "ok"
-            if any(
-                status["status"] != "ok"
-                for status in preflight["details"]["model_access"].values()
-            ):
-                preflight["status"] = "blocked"
-        except Exception as exc:  # noqa: BLE001
-            preflight["status"] = _classify_error(exc)
-            preflight["error_type"] = type(exc).__name__
-            preflight["error"] = str(exc)
-        preflight["wall_clock_s"] = round(time.perf_counter() - started, 3)
-        preflight["finished_at"] = _now()
-        _write_json(output_dir / "preflight.json", preflight)
+            cached_pre = json.loads((output_dir / "preflight.json").read_text(encoding="utf-8"))
+            if cached_pre.get("status") == "ok":
+                print(f"[ok, cached] preflight: {output_dir / 'preflight.json'}")
+                preflight = cached_pre
+        except Exception:
+            pass
+
+    if preflight is None:
+        preflight = _run_child("preflight", args) if args.preflight_subprocess else None
+        if preflight is None:
+            preflight = _base_payload("preflight", args)
+            started = time.perf_counter()
+            try:
+                preflight["details"] = check_preflight(args)
+                preflight["status"] = "ok"
+                if any(
+                    status["status"] != "ok"
+                    for status in preflight["details"]["model_access"].values()
+                ):
+                    preflight["status"] = "blocked"
+            except Exception as exc:  # noqa: BLE001
+                preflight["status"] = _classify_error(exc)
+                preflight["error_type"] = type(exc).__name__
+                preflight["error"] = str(exc)
+            preflight["wall_clock_s"] = round(time.perf_counter() - started, 3)
+            preflight["finished_at"] = _now()
+            _write_json(output_dir / "preflight.json", preflight)
 
     model_access = preflight.get("details", {}).get("model_access", {})
     model_repo = _resolve_model(args)
@@ -725,22 +736,21 @@ def run_all(args: argparse.Namespace) -> int:
     model_ready = model_access.get(target_model, {}).get("status") == "ok"
     results: dict[str, dict[str, Any]] = {"preflight": preflight}
 
-    if args.proxy or model_ready:
-        for name in TOOLKITS:
-            existing_file = output_dir / f"{name}.json"
-            if getattr(args, "skip_existing", False) and existing_file.exists():
-                try:
-                    cached = json.loads(existing_file.read_text(encoding="utf-8"))
-                    if cached.get("status") == "ok":
-                        print(f"[ok, cached] {name}: {existing_file}")
-                        results[name] = cached
-                        continue
-                except Exception:
-                    pass
+    reason = f"{target_model} is not accessible; accept the licence and set HF_TOKEN"
+    for name in TOOLKITS:
+        existing_file = output_dir / f"{name}.json"
+        if getattr(args, "skip_existing", False) and existing_file.exists():
+            try:
+                cached = json.loads(existing_file.read_text(encoding="utf-8"))
+                if cached.get("status") == "ok":
+                    print(f"[ok, cached] {name}: {existing_file}")
+                    results[name] = cached
+                    continue
+            except Exception:
+                pass
+        if args.proxy or model_ready:
             results[name] = _run_child(name, args)
-    else:
-        reason = f"{target_model} is not accessible; accept the licence and set HF_TOKEN"
-        for name in TOOLKITS:
+        else:
             results[name] = _blocked_payload(name, args, reason)
             _write_json(output_dir / f"{name}.json", results[name])
             print(f"[blocked] {name}: {reason}")
