@@ -1,0 +1,43 @@
+# CPU/GPU mechanics smoke for S7. This is NOT G4 evidence: it uses the
+# partial S1 smoke data, tiny row caps and the string-match judge. It exercises
+# real generation, SafeTune judging, AuditKIT precomputed runs, pooling,
+# composites, paired tests and manifest writing.
+models:
+  - base
+  - aligned
+
+benchmarks:
+  - orbench_hard
+  - medmcqa_validation
+  - mmlu_non_medical
+
+generation:
+  max_new_tokens_safety: 64
+  max_new_tokens_mcq: 16
+  batch_size: 2
+  seed: 0
+  use_chat_template: true
+  record_letter_logits: true
+  max_prompt_tokens: 1024
+
+judge:
+  primary: string_match
+  secondary: string_match
+  human_audit_per_model: 10
+  allow_cpu: true
+
+bootstrap_resamples: 200
+bootstrap_ci: 0.95
+data_dir: artifacts/data_smoke
+generations_dir: results/generations_smoke
+output_dir: artifacts/eval_smoke
+audit_output_dir: artifacts/audit_smoke
+max_rows:
+  orbench_hard: 10
+  medmcqa_validation: 10
+  mmlu_non_medical: 10
+skip_existing: true
+seed: 0
+hf_org: "${HF_ORG}"
+device: auto
+dtype: bfloat16

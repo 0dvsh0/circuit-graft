@@ -322,6 +322,128 @@ real-tokenizer CPU smoke completed with a `partial` manifest, as intended.
 even though `-base` is accessible. G0 and every experiment above S1 remain
 blocked until that grant propagates and a CUDA runtime is available.
 
+## 2026-11-07 - S2 drift stage
+
+**Goal:** implement SPEC §7: LoRA SFT of θ_A on the CuratorKIT-curated benign
+medical rows, an optional explicitly supplied Scenario B contamination, merged
+checkpoint output, manifest lineage, and the G-drift gate over θ_A/θ_D metrics.
+
+**Commands:**
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests\test_drift.py -q
+.venv\Scripts\python.exe -m pytest -q
+.venv\Scripts\ruff.exe check src tests
+```
+
+**Outcome:** 14 drift tests pass; the full suite is `135 passed` with one
+upstream TransformerLens deprecation warning; ruff is clean. No real training
+run was possible: there is no CUDA device and the aligned Tiny Aya checkpoint
+is still gated.
+
+**Implementation:**
+
+- `drift/finetune.py` loads `train.jsonl` / `validation.jsonl` from the S1
+  messages export, renders the tokenizer's chat template explicitly, labels
+  assistant tokens only, masks prompt tokens with `-100`, and trains LoRA
+  through TRL's `SFTTrainer` with `dataset_kwargs={"skip_prepare_dataset":
+  True}` plus a custom padding collator.
+- Scenario A uses benign rows only. Scenario B requires
+  `DriftConfig.harmful_rows` (an explicit JSONL; the validator rejects B
+  without it) and replaces a seeded fraction of benign rows with those rows.
+  CircuitGraft never generates harmful examples.
+- The run writes `adapter/`, an optional `merged/` checkpoint, `trainer/`,
+  `training_args.json`, `drift_summary.json` and a manifest. `latest.json`
+  points S5–S7 at the newest scenario.
+- `evaluate_drift_gate` / `apply_drift_gate` accept both the compact and
+  per-benchmark metric layouts and require a domain-accuracy gain of at least
+  0.03 *and* a HarmBench refusal drop of at least 0.15, with reason strings
+  when either is missing.
+
+**Tests added:** `tests/test_drift.py` covers message normalisation, harmful
+row conversion, contamination fraction/seed behaviour, chat rendering and
+assistant-only labels, padding, the Scenario B config guard, summary/manifest
+writing, checkpoint skip logic and gate evaluation.
+
+## 2026-11-07 - S7 evaluation pipeline and proxy mechanics smoke
+
+**Goal:** implement SPEC §9/§12: checkpoint resolution, cached greedy
+generation, MCQ logits, SafeTune judging, AuditKIT precomputed runs and
+red-team probes, pooled metrics, SRR/DGR/ORP composites, the G-drift gate,
+paired McNemar + Holm tests, a human-audit template, and run manifests.
+
+**Commands:**
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q
+.venv\Scripts\ruff.exe check src tests
+Get-ChildItem configs -Recurse -Filter *.yaml | ForEach-Object {
+  .venv\Scripts\cg.exe config-check $_.FullName --kind auto
+}
+```
+
+**Outcome:** `135 passed`; ruff clean; all 20 shipped configs validate. The
+proxy mechanics smoke below completed end to end.
+
+**Implementation:**
+
+- `eval/models.py`: logical model resolution (explicit `eval.model_paths`
+  first, then completed stage artifact directories), safetensors/LoRA loading,
+  dtype/device handling and content fingerprints.
+- `eval/generate.py`: one checkpoint at a time, cached greedy rollouts under
+  `results/generations/<model>/<benchmark>.jsonl`, generation manifests, chat
+  template/preamble handling, and first-step MCQ letter logits.
+- `eval/domain.py`: `Answer: X` -> standalone option -> logit fallback,
+  accuracy and parse-failure CIs, and per-item outcomes with response hashes
+  instead of full responses.
+- `eval/safety.py`: SafeTune `StringMatchJudge(mode="prefix")` and optional
+  WildGuard `HFJudge`, HRR/FRR, per-model human-audit CSVs with Cohen's kappa,
+  and `run_audit` for S3 (SafeTune `evaluate` when the primary judge is
+  available; AuditKIT `RedTeamRunner` always).
+- `eval/auditkit_runs.py`: `ak.evaluate(..., "precomputed")` over cached MCQ
+  generations with `FunctionScorer` accuracy/parse-rate, per-run directories
+  with AuditKIT provenance, `ak.compare` bootstrap comparisons, and the
+  red-team wrapper around the loaded HF model.
+- `eval/pipeline.py`: generation -> judging -> pooling -> composites -> gate ->
+  McNemar/Holm -> AuditKIT comparisons -> human-audit templates -> summary and
+  manifest. Missing benchmarks, judges, AuditKIT failures or a pending human
+  audit force `status = partial` with explicit reasons.
+
+**Proxy smoke (explicitly not G4 and not Tiny Aya):**
+
+| Item | Value |
+|---|---|
+| run | `eval-e71c7a6ce0c41416` |
+| aligned | `HuggingFaceTB/SmolLM-135M-Instruct` |
+| drifted | `HuggingFaceTB/SmolLM-135M` |
+| benchmarks | `orbench_hard`, `medmcqa_validation`, `mmlu_non_medical` (4 rows each) |
+| judge | SafeTune string-match |
+| observed HRR/FRR | FRR 0.0 for both models; no safety benchmark, so HRR n/a |
+| observed accuracies | domain 0.0, general 0.0 for both models |
+| AuditKIT | per-benchmark plus pooled `domain_mcq` / `general_mcq` runs and `ak.compare` |
+| `gate_g_drift` | `not_evaluated` (no safety benchmark in the smoke data) |
+| human audit | pending, so the summary is `partial` in a full run; this smoke had no generated safety rows |
+
+The zero accuracies are the real output of the 135M proxy models on four-row
+samples. They must never be quoted as Tiny Aya, safety-drift or CircuitGraft
+recovery evidence. The summary, manifest and AuditKIT comparisons are preserved
+under `results/s7/smoke_proxy/`; item files and AuditKIT RunResults stay in the
+git-ignored `artifacts/` tree and are hashed by the manifest.
+
+**Bugs found and fixed:**
+
+1. The human-audit lookup read a non-existent top-level `safety` key instead of
+   `judged.safety`; it would have produced empty review templates.
+2. `_metric_doc` did not strip per-item rows from the saved summary in every
+   path. Per-item outcomes now always live in separate JSONL files so full
+   harmful generations are not published accidentally.
+3. AuditKIT `RedTeamResult.total_probes` / `passed_probes` / `failed_probes` /
+   `pass_rate` are attributes, not methods.
+4. AuditKIT writes one `lexsi_provenance.json` per folder, so every
+   `(model, benchmark)` run gets its own directory.
+5. The pooled AuditKIT runs needed benchmark-prefixed IDs to avoid collisions
+   between `medmcqa_validation` and `mmlu_non_medical` row IDs.
+
 ## Open items
 
 1. Human lead accepts the `CohereLabs/tiny-aya-global` licence (base is already
@@ -333,6 +455,11 @@ blocked until that grant propagates and a CUDA runtime is available.
    `results/d1/smoke/` as the G0 evidence.
 4. Keep `docs/PREREGISTRATION.md` DRAFT until G0 is resolved; review, freeze
    and commit it before any Phase 4 experiment.
-5. Implement the remaining stage modules (drift, baselines, eval, attacks,
-   report, publish) and their tests. S1 is implemented and smoke-tested; S4
-   discovery is implemented but not yet run on Tiny Aya.
+5. Implement the remaining stage modules (baselines, attacks, report, publish)
+   and their tests. S1, S2, S4, S6 and S7 are implemented; S1/S7 have CPU
+   proxy smoke evidence only, and no Tiny Aya experiment has run.
+6. Run `cg data` with gated benchmarks and an LLM key, complete the pair and
+   domain-sensitive human reviews, then claim G1.
+7. Run a real S2 LoRA training and S7 evaluation on remote GPU once
+   `CohereLabs/tiny-aya-global` access is granted; do not reuse the SmolLM
+   proxy run as evidence.

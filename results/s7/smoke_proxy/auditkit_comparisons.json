@@ -1,0 +1,96 @@
+{
+  "aligned_vs_drifted:domain_mcq": {
+    "baseline_fingerprint": "53f11522aa18b96f",
+    "baseline_run_id": "53f11522aa18b96f",
+    "candidate_fingerprint": "08cad00120f02289",
+    "candidate_run_id": "08cad00120f02289",
+    "deltas": [
+      {
+        "baseline": 0.0,
+        "baseline_count": 4,
+        "candidate": 0.0,
+        "candidate_count": 4,
+        "delta": 0.0,
+        "direction": "maximize",
+        "grade": "pass",
+        "metric": "accuracy",
+        "pct_change": null
+      },
+      {
+        "baseline": 1.0,
+        "baseline_count": 4,
+        "candidate": 1.0,
+        "candidate_count": 4,
+        "delta": 0.0,
+        "direction": "maximize",
+        "grade": "pass",
+        "metric": "parse_rate",
+        "pct_change": 0.0
+      }
+    ],
+    "metric": "accuracy",
+    "sample_summary": {
+      "newly_correct": 0,
+      "newly_wrong": 0,
+      "still_correct": 0,
+      "still_wrong": 4,
+      "unknown": 0
+    },
+    "significance": {
+      "delta": 0.0,
+      "mean_baseline": 0.0,
+      "mean_candidate": 0.0,
+      "n": 4,
+      "p_value": 1.0,
+      "significant": false
+    },
+    "status": "complete"
+  },
+  "aligned_vs_drifted:general_mcq": {
+    "baseline_fingerprint": "b12c20e5ff96f3b0",
+    "baseline_run_id": "b12c20e5ff96f3b0",
+    "candidate_fingerprint": "6f11ae6c0c815c76",
+    "candidate_run_id": "6f11ae6c0c815c76",
+    "deltas": [
+      {
+        "baseline": 0.0,
+        "baseline_count": 4,
+        "candidate": 0.0,
+        "candidate_count": 4,
+        "delta": 0.0,
+        "direction": "maximize",
+        "grade": "pass",
+        "metric": "accuracy",
+        "pct_change": null
+      },
+      {
+        "baseline": 1.0,
+        "baseline_count": 4,
+        "candidate": 1.0,
+        "candidate_count": 4,
+        "delta": 0.0,
+        "direction": "maximize",
+        "grade": "pass",
+        "metric": "parse_rate",
+        "pct_change": 0.0
+      }
+    ],
+    "metric": "accuracy",
+    "sample_summary": {
+      "newly_correct": 0,
+      "newly_wrong": 0,
+      "still_correct": 0,
+      "still_wrong": 4,
+      "unknown": 0
+    },
+    "significance": {
+      "delta": 0.0,
+      "mean_baseline": 0.0,
+      "mean_candidate": 0.0,
+      "n": 4,
+      "p_value": 1.0,
+      "significant": false
+    },
+    "status": "complete"
+  }
+}

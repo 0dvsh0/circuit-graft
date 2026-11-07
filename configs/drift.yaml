@@ -1,5 +1,9 @@
 scenario: A          # A = benign medical SFT (primary); B = 3% harmful rows (fallback, disclosed)
 harmful_fraction: 0.03
+# Scenario B only. Point this at an explicit JSONL of harmful-compliance rows
+# (messages, or prompt + response/completion). CircuitGraft never generates
+# these automatically, and the config validator rejects B without a file.
+harmful_rows: null
 seed: 0
 sft_dataset: artifacts/data/medmcqa_sft
 output_dir: artifacts/drift

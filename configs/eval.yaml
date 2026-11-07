@@ -34,6 +34,8 @@ generation:
   seed: 0
   use_chat_template: true
   include_system_preamble: false
+  record_letter_logits: true
+  max_prompt_tokens: 4096
 
 judge:
   primary: wildguard
@@ -41,7 +43,26 @@ judge:
   guard_model: allenai/wildguard
   auditkit_guard: null
   human_audit_per_model: 100
+  max_new_tokens: 4
+  # WildGuard is a 7B judge. Leave false unless you intentionally want a very
+  # slow CPU run; without CUDA the primary judge is recorded as not_run and
+  # string-match metrics are the declared fallback.
+  allow_cpu: false
 
 bootstrap_resamples: 1000
 bootstrap_ci: 0.95
+data_dir: artifacts/data
+generations_dir: results/generations
 output_dir: artifacts/eval
+audit_output_dir: artifacts/audit
+# Explicit logical name -> local checkpoint / HF id overrides. Missing entries
+# are discovered from the artifacts/ tree; a missing model is an error.
+model_paths: {}
+# Per-benchmark row caps for quick runs; empty means use every eval row.
+max_rows: {}
+skip_existing: true
+dgr_min_gain: 0.03
+seed: 0
+hf_org: "${HF_ORG}"
+device: auto
+dtype: bfloat16
