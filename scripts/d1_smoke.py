@@ -326,13 +326,16 @@ def patch_transformer_lens_weight_processing() -> None:
 def check_circuitkit(args: argparse.Namespace) -> dict[str, Any]:
     import torch
 
-    patch_transformer_lens_weight_processing()
-
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
+    # CircuitKIT MUST be imported before transformer_lens so its architecture
+    # patches (such as Cohere2ForCausalLM for Tiny Aya) are installed.
     import circuitkit as ck
+
+    # Monkey-patch TransformerLens to avoid float32 upcast spike on 3.5B+ models
+    patch_transformer_lens_weight_processing()
 
     output_path = args.output_dir / "circuitkit_greater_than.pt"
     device = _resolve_device(args)
@@ -343,17 +346,42 @@ def check_circuitkit(args: argparse.Namespace) -> dict[str, Any]:
         dtype=dtype,
         device=device,
     )
+    # Cap n_ctx to avoid allocating huge activation caches for 8k context on 15-token prompts
+    if hasattr(model, "cfg") and hasattr(model.cfg, "n_ctx"):
+        model.cfg.n_ctx = min(model.cfg.n_ctx, 128)
+
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
     try:
-        circuit = ck.discover(
-            model,
-            "greater_than",
-            algorithm="eap-ig",
-            level="node",
-            n_examples=args.max_examples,
-            batch_size=1,
-            sparsity=0.5,
-            output_path=str(output_path),
-        )
+        # Use single-pass EAP (or EAP-IG with 1 step) to prevent backward graph VRAM spikes
+        try:
+            circuit = ck.discover(
+                model,
+                "greater_than",
+                algorithm="eap",
+                level="node",
+                n_examples=args.max_examples,
+                batch_size=1,
+                sparsity=0.5,
+                output_path=str(output_path),
+            )
+        except Exception:
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            circuit = ck.discover(
+                model,
+                "greater_than",
+                algorithm="eap-ig",
+                level="node",
+                n_examples=args.max_examples,
+                batch_size=1,
+                sparsity=0.5,
+                ig_steps=1,
+                output_path=str(output_path),
+            )
         top_nodes = circuit.top_nodes(min(8, len(circuit)))
         return {
             "task": circuit.task,

@@ -265,9 +265,9 @@ def run_circuitkit_discovery(
             "the component vocabulary is heads + MLPs"
         )
 
-    patch_transformer_lens_weight_processing()
-
     import circuitkit as ck
+
+    patch_transformer_lens_weight_processing()
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -288,6 +288,8 @@ def run_circuitkit_discovery(
         device=effective_device,
         algorithm=algorithm,
     )
+    if hasattr(model, "cfg") and hasattr(model.cfg, "n_ctx") and max_seq_len:
+        model.cfg.n_ctx = min(model.cfg.n_ctx, max(max_seq_len, 128))
     artifact_path = output_dir / "circuit.pt"
     try:
         circuit = ck.discover(
