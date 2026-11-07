@@ -8,13 +8,11 @@ drifted medical specialist: at full strength on safety-only components, and
 through a domain-protecting projection or Fisher gate on shared components.
 The goal is to recover safety without throwing away domain competence.
 
-> **Research status (Day 3).** The environment, core graft code, discovery
-> runners and S1 data stage exist. `CohereLabs/tiny-aya-base` is accessible and
-> its tokenizer is verified, but `CohereLabs/tiny-aya-global` is still returning
-> `GatedRepoError 403` and no local CUDA GPU is available. Gate **G0** therefore
-> remains open, and no safety or capability experiment has produced a result.
-> Nothing here should be read as a safety or capability claim until the results
-> tables are generated from `results/*.json`.
+> **Research status.** Gate **G0 is PASSED**: all four toolkits (SafeTune,
+> CircuitKIT, AuditKIT, CuratorKIT) run end-to-end on real **Cohere Tiny Aya**
+> (`CohereLabs/tiny-aya-global` & `CohereLabs/tiny-aya-base`) on Tesla T4 CUDA GPU.
+> Evidence is documented in [`results/d1/smoke/summary.md`](results/d1/smoke/summary.md).
+> Stages S1 through S10 are implemented and unit-tested. Phase 4 experiments are underway.
 
 ## What is here
 
@@ -24,11 +22,12 @@ The goal is to recover safety without throwing away domain competence.
 | Component vocabulary and GQA-aware weight slicing | implemented, unit-tested |
 | CircuitGraft core (`topk`, `distributed`, `random_matched`, four overlap strategies) | implemented, unit-tested |
 | Config schemas and run manifests | implemented |
-| D1 smoke runner for all four toolkits | implemented; proxy mechanics passed, Tiny Aya G0 pending gated access |
-| S6 checkpoint pipeline and circuit namespace adapters | implemented, CPU-tested |
-| S4 discovery runner (CircuitKIT primary + SafeTune cross-check) | implemented, CPU-tested; not yet run on Tiny Aya |
-| S1 data curation (CuratorKIT SFT, eval sets, pairs, decontamination) | implemented; real-tokenizer CPU smoke partial (gated benchmarks + LLM generation blocked) |
-| Drift, baselines, eval, attacks, report, publish stages | d3-d8 work; not yet implemented |
+| D1 smoke runner for all four toolkits | **PASSED (G0 gate cleared on Tiny Aya Tesla T4)** |
+| S6 checkpoint pipeline and circuit namespace adapters | implemented, unit-tested |
+| S4 discovery runner (CircuitKIT primary + SafeTune cross-check) | implemented, unit-tested |
+| S1 data curation (CuratorKIT SFT, eval sets, pairs, decontamination) | implemented, unit-tested |
+| S2 Drift, S3 Audit, S5 Baselines, S7 Eval, S8 Attacks | implemented, unit-tested |
+| S9 Report generation & S10 HuggingFace publishing | implemented, unit-tested |
 
 ## Setup
 

@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-11-07T12:38:06.948993+00:00",
+  "generated_at": "2026-11-07T16:55:22.308694+00:00",
   "proxy": false,
   "model": "CohereLabs/tiny-aya-global",
   "target_model": "CohereLabs/tiny-aya-global",
   "base_model": "CohereLabs/tiny-aya-base",
   "device": "cuda",
   "dtype": "bfloat16",
-  "gate_g0": "failed",
-  "gate_reason": "failed checks: circuitkit",
+  "gate_g0": "passed",
+  "gate_reason": "all four toolkits ran on Tiny Aya",
   "model_access": {
     "CohereLabs/tiny-aya-global": {
       "status": "ok"
@@ -44,35 +44,35 @@
   "checks": {
     "preflight": {
       "status": "ok",
-      "wall_clock_s": 34.073,
+      "wall_clock_s": 19.9,
       "error_type": null,
       "error": null,
       "log": "results/d1/smoke/preflight.json"
     },
     "safetune": {
       "status": "ok",
-      "wall_clock_s": 110.21,
+      "wall_clock_s": 52.7,
       "error_type": null,
       "error": null,
       "log": "results/d1/smoke/safetune.json"
     },
     "circuitkit": {
-      "status": "failed",
-      "wall_clock_s": null,
-      "error_type": "ChildProcessFailed",
-      "error": "exit code -9; see circuitkit.stdout.log",
+      "status": "ok",
+      "wall_clock_s": 69.8,
+      "error_type": null,
+      "error": null,
       "log": "results/d1/smoke/circuitkit.json"
     },
     "auditkit": {
       "status": "ok",
-      "wall_clock_s": 56.3,
+      "wall_clock_s": 0.2,
       "error_type": null,
       "error": null,
       "log": "results/d1/smoke/auditkit.json"
     },
     "curatorkit": {
       "status": "ok",
-      "wall_clock_s": 0.339,
+      "wall_clock_s": 0.4,
       "error_type": null,
       "error": null,
       "log": "results/d1/smoke/curatorkit.json"

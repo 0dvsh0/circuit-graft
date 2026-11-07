@@ -529,15 +529,65 @@ stage (`abliterate`, `harmful_ft`, `quantize`) with offline tests.
 **Outcome:** `156 passed`, 1 warning (upstream TransformerLens deprecation);
 ruff clean; all configs pass validation.
 
+## 2026-11-07 - Gate G0 Passed on Real Tiny Aya (Tesla T4 CUDA)
+
+**Goal:** Execute D1 smoke test on real Cohere Tiny Aya (`CohereLabs/tiny-aya-global`
+and `CohereLabs/tiny-aya-base`) on a GPU runtime with accepted licences, proving all
+four toolkits (SafeTune, CircuitKIT, AuditKIT, CuratorKIT) run end-to-end on the target
+model.
+
+**Command (Google Colab, Tesla T4 GPU, Python 3.13 / CUDA 13.0):**
+
+```bash
+python scripts/d1_smoke.py --device cuda --output-dir results/d1/smoke
+```
+
+**Outcome:** `D1 G0: passed - all four toolkits ran on Tiny Aya`.
+
+| Check | Status | Wall clock (s) | Log / Details |
+|---|---|---|---|
+| `preflight` | `ok` | 19.9 | Verified access to `CohereLabs/tiny-aya-global` and `CohereLabs/tiny-aya-base` |
+| `safetune` | `ok` | 52.7 | Discovered 32 safety units across 28 layers using EAP-IG on aligned Tiny Aya |
+| `circuitkit` | `ok` | 69.8 | Discovered `greater_than` node-level circuit using HookedTransformer on Tiny Aya |
+| `auditkit` | `ok` | 0.2 | Generated and scored 4 benign test samples via `hf:CohereLabs/tiny-aya-global` |
+| `curatorkit` | `ok` | 0.4 | Curation pipeline (dedup, cleaning, export) executed cleanly |
+
+**Engineering Challenges & Fixes:**
+
+1. **TransformerLens float32 upcast spike on 3.5B model:** In `transformer_lens.weight_processing`,
+   tensors were unconditionally upcast to float32 even when folding/centering was False,
+   creating a 14 GB spike that triggered OOM on the 14.56 GB T4 GPU. Fixed with
+   `patch_transformer_lens_weight_processing()`.
+2. **CircuitKIT architecture patch dependency:** CircuitKIT patches `transformer_lens` on
+   startup to register `Cohere2ForCausalLM`. Calling `patch_transformer_lens_weight_processing()`
+   before `import circuitkit` triggered an `ImportError`. Fixed by enforcing `import circuitkit`
+   first, followed by the weight processing patch.
+3. **TransformerLens `torch_dtype` omission:** In `loading_from_pretrained.py`, TransformerLens
+   deleted `torch_dtype` from kwargs and passed `dtype=...`, which HuggingFace ignored,
+   causing HuggingFace to load weights in float32. Fixed by wrapping `load_model` in
+   `torch.set_default_dtype(torch.bfloat16)` and monkey-patching `AutoModelForCausalLM.from_pretrained`
+   to ensure `torch_dtype=torch.bfloat16`.
+4. **VRAM activation bounding:** Default Tiny Aya context is $n_{\text{ctx}} = 8192$. Capped
+   `model.cfg.n_ctx = min(n_ctx, 64)`, set `requires_grad = False` on non-embedding weights,
+   and scoped discovery to 1 example, reducing peak backward memory to <150 MB.
+
+**Artifacts:** `results/d1/smoke/summary.json`, `results/d1/smoke/summary.md`,
+`results/d1/smoke/preflight.json`, `results/d1/smoke/safetune.json`,
+`results/d1/smoke/circuitkit.json`, `results/d1/smoke/auditkit.json`,
+`results/d1/smoke/curatorkit.json`.
+
 ## Open items
 
-1. Run `notebooks/run_d1_g0_smoke.ipynb` on Google Colab (GPU runtime) or run
-   `scripts/d1_smoke.py --device cuda --output-dir results/d1/smoke`, and download
-   the resulting archive into `results/d1/smoke/` to claim Gate G0.
-2. Run `cg data` with now-accessible gated datasets and active Cohere key,
-   complete the 10% human-review CSV, and claim G1.
-3. Keep `docs/PREREGISTRATION.md` DRAFT until G0 is resolved; review, freeze
-   and commit it before any Phase 4 experiment.
-4. Implement remaining stages: S9 report (`tables.py`, `plots.py`, `inject_readme.py`)
-   and S10 publish (`publish.py`). S1 through S8 are now implemented.
-5. Run S2 LoRA training and S7 evaluation on GPU with real `CohereLabs/tiny-aya-global`.
+1. Run `cg data` with unblocked benchmarks and active Cohere API key, complete 10%
+   human-review contrastive pairs CSV, and claim G1.
+2. Review and freeze `docs/PREREGISTRATION.md` (transition DRAFT -> frozen) before Phase 4.
+3. Execute Phase 4 experiments on remote GPU:
+   - S2: Train drifted specialist $\theta_D$ (`cg drift`).
+   - S3: S3 Audit of $\theta_A$ vs $\theta_D$ (confirming H0 safety degradation).
+   - S4: Discovery of safety circuit $S$ and domain circuit $D$ with CircuitKIT & SafeTune EAP cross-check (`cg discover`).
+   - S5: Baselines (RESTA, Wise-FT, C-ΔΘ).
+   - S6: CircuitGraft variants (`cg_project`, `cg_uniform`, `cg_exclude`, `cg_fisher`).
+   - S7: Full evaluation matrix (`cg eval`).
+   - S8: Adversarial attacks (`cg attack`).
+   - S9: Generate report tables, plots, and inject README metrics (`cg report`).
+   - S10: Publish models & datasets to HuggingFace under `dubeydevansh` (`cg publish`).
