@@ -23,14 +23,32 @@ def word_ngrams(text: str, n: int = 13) -> set[tuple[str, ...]]:
     return {tuple(words[i : i + n]) for i in range(len(words) - n + 1)}
 
 
+def ngram_index(references: Sequence[str], n: int = 13) -> set[tuple[str, ...]]:
+    """Build one lookup set for all reference texts.
+
+    ``find_ngram_overlap`` recomputes every reference's n-grams for every item,
+    which is quadratic on a 20k-row SFT corpus. The eval decontamination step
+    uses this index instead.
+    """
+    index: set[tuple[str, ...]] = set()
+    for reference in references:
+        index.update(word_ngrams(reference, n))
+    return index
+
+
+def find_ngram_overlap_indexed(
+    text: str, index: set[tuple[str, ...]], n: int = 13
+) -> str | None:
+    """Return a matched n-gram (joined) from a precomputed reference index."""
+    shared = word_ngrams(text, n) & index
+    if shared:
+        return " ".join(sorted(shared)[0])
+    return None
+
+
 def find_ngram_overlap(text: str, references: Sequence[str], n: int = 13) -> str | None:
     """Return a matched n-gram (joined) or None."""
-    grams = word_ngrams(text, n)
-    for reference in references:
-        shared = grams & word_ngrams(reference, n)
-        if shared:
-            return " ".join(sorted(shared)[0])
-    return None
+    return find_ngram_overlap_indexed(text, ngram_index(references, n), n)
 
 
 @dataclass

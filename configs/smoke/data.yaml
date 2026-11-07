@@ -1,0 +1,36 @@
+# CPU mechanics smoke for S1. This is NOT G1 evidence: it uses small samples,
+# disables LLM generation and embedding decontamination, and leaves gated
+# benchmarks blocked. Its purpose is to exercise every real loader, CuratorKIT
+# export, pair builder and manifest path on a laptop.
+output_dir: artifacts/data_smoke
+
+sft:
+  max_train_rows: 200
+  max_validation_rows: 50
+
+eval:
+  medmcqa_validation: 100
+  medqa_test: 50
+  pubmedqa_labeled: 50
+  mmlu_non_medical: 50
+  harmbench: 50
+  advbench: 50
+  sorrybench: 50
+  wildjailbreak: 50
+  xstest_safe: 50
+  orbench_hard: 50
+  domain_benign: 20
+  domain_harmful: 10
+  safety_pairs: 16
+  domain_pairs: 32
+  selection_harmbench: 10
+  selection_xstest_safe: 10
+  selection_medmcqa_validation: 20
+  seed: 0
+
+curate:
+  enable_generation: false
+  embedding_dedup: false
+
+decontam:
+  use_embeddings: false

@@ -270,15 +270,69 @@ evidence only.
   continues. The report stage must not quote a circuit without a completed
   faithfulness report; this is an explicit later check, not a silent pass.
 
+## 2026-11-07 - S1 data stage and real-tokenizer smoke
+
+**Goal:** implement the SPEC §6 data stage end to end: CuratorKIT-curated
+MedMCQA SFT, held-out and transfer eval sets, contrastive pairs, 13-gram and
+embedding decontamination, dataset cards, manifests and a partial-run gate.
+
+**Commands:**
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q
+.venv\Scripts\ruff.exe check src tests scripts
+cmd /c "set PYTHONIOENCODING=utf-8&& .venv\Scripts\cg.exe data --config configs\smoke\data.yaml"
+```
+
+**Outcome:** `110 passed`; ruff clean; all 18 stage configs validate. The
+real-tokenizer CPU smoke completed with a `partial` manifest, as intended.
+
+**Smoke evidence (`artifacts/data_smoke/`, git-ignored):**
+
+| Item | Result |
+|---|---|
+| Tiny Aya tokenizer | `CohereLabs/tiny-aya-base` loaded; 261,000 vocab |
+| Pair answer tokens | `" I"` -> 399, `" Sure"` -> 44489, `" A"` -> 375, `" B"` -> 437; all single tokens |
+| SFT | 200 CuratorKIT rows, 0 rejected, 50 held-out validation rows |
+| Domain pairs | 32 pairs; 13-gram overlap with eval sets: 0 removed; tokenizer validation passed |
+| Eval sets | MedMCQA validation, MedQA, PubMedQA, MMLU non-medical and OR-Bench-hard built |
+| Gated benchmarks | HarmBench, AdvBench, SORRY-Bench, WildJailbreak and XSTest still blocked |
+| Safety pairs | `not_generated` (no Cohere key; `enable_generation: false` in smoke config) |
+| Domain-sensitive sets | `not_generated` (same reason) |
+| Gate G1 | `not_evaluated`; manifest status `partial`, with explicit reasons |
+
+**Fixes / API details:**
+
+1. SafeTune's `load_medmcqa` renames `question` to `prompt`. The first smoke
+   produced zero SFT rows until the converters accepted both names.
+2. `run_data` now auto-loads the Tiny Aya tokenizer from `base.models.base`,
+   and records its name in `pairs/validation.json`.
+3. Eval decontamination builds the reference n-gram index once instead of
+   rebuilding it for every candidate.
+4. Pair and domain-sensitive review templates are written once and never
+   overwritten by a rerun; completed pair reviews can flip `label_source` to
+   `human` and reject bad twins. A completed domain review CSV is merged back
+   before decontamination.
+5. SFT section caching now includes decontamination and embedding-dedup
+   settings, so changing either invalidates the cached export.
+6. HarmBench test selection uses the 200 `standard` behaviours only; it does
+   not pad with contextual or copyright subsets.
+
+**Blocker:** `CohereLabs/tiny-aya-global` still returns `GatedRepoError 403`
+even though `-base` is accessible. G0 and every experiment above S1 remain
+blocked until that grant propagates and a CUDA runtime is available.
+
 ## Open items
 
-1. Human lead accepts both Tiny Aya licences.
+1. Human lead accepts the `CohereLabs/tiny-aya-global` licence (base is already
+   accessible) and the five gated datasets listed in `docs/API_NOTES.md`.
 2. Re-run `cg doctor --check-models`; confirm the real architecture against
-   `Cohere2Layout` and verify the tokenizer/chat-template length.
+   `Cohere2Layout` and verify the tokenizer/chat-template length on the
+   aligned checkpoint.
 3. Run `scripts/d1_smoke.py --device cuda` on Colab/Kaggle and archive
    `results/d1/smoke/` as the G0 evidence.
 4. Keep `docs/PREREGISTRATION.md` DRAFT until G0 is resolved; review, freeze
    and commit it before any Phase 4 experiment.
-5. Implement the remaining stage modules (data, drift, baselines, eval,
-   attacks, report, publish) and their tests. Discovery is implemented but not
-   yet run on Tiny Aya.
+5. Implement the remaining stage modules (drift, baselines, eval, attacks,
+   report, publish) and their tests. S1 is implemented and smoke-tested; S4
+   discovery is implemented but not yet run on Tiny Aya.

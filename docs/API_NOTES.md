@@ -187,6 +187,27 @@ judge = StringMatchJudge(prefixes=None, scan_chars=None, mode=None)
 scored_rows = judge.score(rows)  # rows: list[dict]
 ```
 
+### Dataset loaders
+
+The installed loaders do more than forward `load_dataset`; inspect the returned
+schema before converting:
+
+- `load_medmcqa` renames the MedMCQA `question` column to `prompt`. The S1
+  converters accept either name.
+- `load_harmbench` defaults to all 400 behaviours across `standard` (200),
+  `contextual` (100) and `copyright` (100), and adds a `subset` column. The
+  pre-registered test set uses `standard` only.
+- `load_orbench` returns a list of dicts with `prompt`, `split` and `category`;
+  the hard split name contains `hard`.
+- `load_beavertails(split="30k_train")` has `prompt`, `response`, `category`
+  and `is_safe`; the safety-pair builder keeps `is_safe is False`.
+- `load_xstest` returns 450 test rows (250 safe, 200 unsafe). The spec's
+  "test 250 + selection 100" cannot be disjointly satisfied from the safe
+  subset, so S1 reduces the test split and records the adjustment.
+- On 2026-11-07 the following datasets were still gated for this account:
+  `walledai/HarmBench`, `walledai/AdvBench`,
+  `sorry-bench/sorry-bench-202503`, `allenai/wildjailbreak`, `walledai/XSTest`.
+
 ### Abliteration
 
 ```python
@@ -449,16 +470,21 @@ are the artifacts the specification requires us to retain and publish.
    section. This is the largest unresolved threat to the fairness of the
    C-ΔΘ comparison and must be resolved before G3.
 
-3. **Tiny Aya tokenizer facts are still unverified.** We could not load
-   `CohereLabs/tiny-aya-global` or `-base`: both returned `GatedRepoError 403`
-   on 2026-11-05. The specification's architecture values (36 layers, 2048
-   hidden, 16 heads / 4 KV heads, 128 head dim, 11008 MLP, 262k vocab) are
-   encoded in `Cohere2Layout` but `assert_matches_model` has not run against
-   the real checkpoint.
+3. **Tiny Aya access is asymmetric.** On 2026-11-07
+   `CohereLabs/tiny-aya-base` was accessible and its tokenizer loaded, while
+   `CohereLabs/tiny-aya-global` still returned `GatedRepoError 403`. The base
+   tokenizer reports a 261,000-token vocabulary. The specification's `" I"`
+   and `" Sure"` pair answers tokenize to exactly one token each (`399` and
+   `44489`), as do `" A"` and `" B"` (`375`, `437`). The specification's
+   architecture values (36 layers, 2048 hidden, 16 heads / 4 KV heads, 128 head
+   dim, 11008 MLP) are still unverified on a checkpoint because
+   `assert_matches_model` has not run against Tiny Aya.
 
-4. **Chat-template length is unverified.** The spec reports a ~366-token
-   system preamble. Discovery pair building and generation must use the same
-   preamble decision. This remains a D2 task.
+4. **Chat-template length is unverified.** The base tokenizer has no chat
+   template (`tokenizer.chat_template is None`); the global checkpoint must
+   provide it. The spec reports a ~366-token system preamble, so generation and
+   discovery pair building must use the same preamble decision once global
+   access is granted.
 
 5. **One environment works.** All four toolkits import and run together under
    Python 3.12.15, so the two-environment fallback in the spec is not needed

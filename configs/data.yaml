@@ -25,6 +25,9 @@ eval:
   domain_harmful: 150
   safety_pairs: 256
   domain_pairs: 256
+  selection_harmbench: 100
+  selection_xstest_safe: 100
+  selection_medmcqa_validation: 200
   seed: 0
 
 curate:
@@ -37,6 +40,12 @@ curate:
   pairs_human_verify_fraction: 0.1
   push_rejected: true
   seed: 0
+  # Set to false to build SFT/eval/pairs without an LLM key. Domain-sensitive
+  # rows then stay absent and G1 cannot pass.
+  enable_generation: true
+  num_questions: 3
+  embedding_dedup: true
+  twin_cache: .cache/harmless_twins.json
 
 decontam:
   ngram_size: 13

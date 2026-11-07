@@ -180,6 +180,9 @@ class EvalDataConfig(StrictModel):
     domain_harmful: int = 150
     safety_pairs: int = 256
     domain_pairs: int = 256
+    selection_harmbench: int = 100
+    selection_xstest_safe: int = 100
+    selection_medmcqa_validation: int = 200
     seed: int = 0
 
 
@@ -193,6 +196,10 @@ class CurateConfig(StrictModel):
     pairs_human_verify_fraction: float = 0.1
     push_rejected: bool = True
     seed: int = 0
+    enable_generation: bool = True
+    num_questions: int = 3
+    embedding_dedup: bool = True
+    twin_cache: str = ".cache/harmless_twins.json"
 
 
 class DecontamConfig(StrictModel):

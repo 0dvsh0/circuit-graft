@@ -8,11 +8,13 @@ drifted medical specialist: at full strength on safety-only components, and
 through a domain-protecting projection or Fisher gate on shared components.
 The goal is to recover safety without throwing away domain competence.
 
-> **Research status (Day 1).** The environment and core graft code exist, but no
-> experiment has produced a result yet. Tiny Aya is licence-gated and the current
-> HF account has not been granted access, so gate **G0** is still open. Nothing in
-> this repository should be read as a safety or capability claim until the
-> results tables are generated from `results/*.json`.
+> **Research status (Day 3).** The environment, core graft code, discovery
+> runners and S1 data stage exist. `CohereLabs/tiny-aya-base` is accessible and
+> its tokenizer is verified, but `CohereLabs/tiny-aya-global` is still returning
+> `GatedRepoError 403` and no local CUDA GPU is available. Gate **G0** therefore
+> remains open, and no safety or capability experiment has produced a result.
+> Nothing here should be read as a safety or capability claim until the results
+> tables are generated from `results/*.json`.
 
 ## What is here
 
@@ -25,7 +27,8 @@ The goal is to recover safety without throwing away domain competence.
 | D1 smoke runner for all four toolkits | implemented; proxy mechanics passed, Tiny Aya G0 pending gated access |
 | S6 checkpoint pipeline and circuit namespace adapters | implemented, CPU-tested |
 | S4 discovery runner (CircuitKIT primary + SafeTune cross-check) | implemented, CPU-tested; not yet run on Tiny Aya |
-| Data curation, drift, baselines, eval, attacks, report, publish stages | D2-D8 work; not yet run |
+| S1 data curation (CuratorKIT SFT, eval sets, pairs, decontamination) | implemented; real-tokenizer CPU smoke partial (gated benchmarks + LLM generation blocked) |
+| Drift, baselines, eval, attacks, report, publish stages | d3-d8 work; not yet implemented |
 
 ## Setup
 
@@ -50,7 +53,9 @@ instead of the Windows paths.
 
 Both `CohereLabs/tiny-aya-global` and `CohereLabs/tiny-aya-base` are gated. Log
 in to Hugging Face as the account that owns `HF_TOKEN`, open each model page,
-accept the licence, and wait for the grant to propagate. Then:
+accept the licence, and wait for the grant to propagate. On 2026-11-07 the base
+checkpoint was accessible but the global checkpoint still returned 403, so both
+must be checked separately. Then:
 
 ```bash
 cg doctor --check-models --json-out results/d1/environment.json
@@ -94,6 +99,9 @@ numbers are proxy-model mechanics only, not Tiny Aya evidence.
 cg doctor                    # packages, device, token
 cg config-check configs/base.yaml
 cg config-check configs/graft/cg_project.yaml
+
+# S1 mechanics smoke: small samples, no LLM key, no embedding filter
+cg data --config configs/smoke/data.yaml
 ```
 
 The full pipeline commands planned by the specification are `cg data`, `drift`,
