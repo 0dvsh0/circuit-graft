@@ -269,6 +269,20 @@ def run_circuitkit_discovery(
 
     patch_transformer_lens_weight_processing()
 
+    import torch
+    import transformers
+
+    if not getattr(transformers.AutoModelForCausalLM, "_cg_patched", False):
+        orig_hf_from_pretrained = transformers.AutoModelForCausalLM.from_pretrained
+
+        def _fast_hf_from_pretrained(*hf_args, **hf_kwargs):
+            if "torch_dtype" not in hf_kwargs:
+                hf_kwargs["torch_dtype"] = torch.bfloat16
+            return orig_hf_from_pretrained(*hf_args, **hf_kwargs)
+
+        transformers.AutoModelForCausalLM.from_pretrained = staticmethod(_fast_hf_from_pretrained)
+        transformers.AutoModelForCausalLM._cg_patched = True
+
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     effective_device = _resolve_device(device)
@@ -282,12 +296,17 @@ def run_circuitkit_discovery(
         effective_device,
         effective_dtype,
     )
-    model = ck.load_model(
-        str(model_ref),
-        dtype=effective_dtype,
-        device=effective_device,
-        algorithm=algorithm,
-    )
+    if effective_device == "cuda" and effective_dtype == "bfloat16":
+        torch.set_default_dtype(torch.bfloat16)
+    try:
+        model = ck.load_model(
+            str(model_ref),
+            dtype=effective_dtype,
+            device=effective_device,
+            algorithm=algorithm,
+        )
+    finally:
+        torch.set_default_dtype(torch.float32)
     if hasattr(model, "cfg") and hasattr(model.cfg, "n_ctx") and max_seq_len:
         model.cfg.n_ctx = min(model.cfg.n_ctx, max(max_seq_len, 128))
     artifact_path = output_dir / "circuit.pt"

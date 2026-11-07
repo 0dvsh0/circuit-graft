@@ -337,51 +337,64 @@ def check_circuitkit(args: argparse.Namespace) -> dict[str, Any]:
     # Monkey-patch TransformerLens to avoid float32 upcast spike on 3.5B+ models
     patch_transformer_lens_weight_processing()
 
+    # Monkey-patch AutoModelForCausalLM.from_pretrained to pass torch_dtype.
+    # TransformerLens strips torch_dtype and passes dtype=..., which HuggingFace
+    # ignores, causing HuggingFace to load the 3.5B model in float32 (13.7 GB).
+    import transformers
+
+    if not getattr(transformers.AutoModelForCausalLM, "_cg_patched", False):
+        orig_hf_from_pretrained = transformers.AutoModelForCausalLM.from_pretrained
+
+        def _fast_hf_from_pretrained(*hf_args, **hf_kwargs):
+            if "torch_dtype" not in hf_kwargs:
+                hf_kwargs["torch_dtype"] = torch.bfloat16
+            return orig_hf_from_pretrained(*hf_args, **hf_kwargs)
+
+        transformers.AutoModelForCausalLM.from_pretrained = staticmethod(_fast_hf_from_pretrained)
+        transformers.AutoModelForCausalLM._cg_patched = True
+
+    # Set default dtype to bfloat16 so any layer initialized defaults to bfloat16 (7 GB) instead of float32 (14 GB)
+    torch.set_default_dtype(torch.bfloat16)
+
     output_path = args.output_dir / "circuitkit_greater_than.pt"
     device = _resolve_device(args)
     dtype = _resolve_dtype(args)
 
-    model = ck.load_model(
-        _resolve_model(args),
-        dtype=dtype,
-        device=device,
-    )
+    try:
+        model = ck.load_model(
+            _resolve_model(args),
+            dtype=dtype,
+            device=device,
+        )
+    finally:
+        torch.set_default_dtype(torch.float32)
+
     # Cap n_ctx to avoid allocating huge activation caches for 8k context on 15-token prompts
     if hasattr(model, "cfg") and hasattr(model.cfg, "n_ctx"):
-        model.cfg.n_ctx = min(model.cfg.n_ctx, 128)
+        model.cfg.n_ctx = min(model.cfg.n_ctx, 64)
+
+    # Freeze non-embedding weights so backward does not allocate gradients for all 3.5B params
+    for name, param in model.named_parameters():
+        if not (name.startswith("embed") or name.startswith("pos_embed")):
+            param.requires_grad = False
 
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
+    n_examples = min(args.max_examples, 4)
     try:
-        # Use single-pass EAP (or EAP-IG with 1 step) to prevent backward graph VRAM spikes
-        try:
-            circuit = ck.discover(
-                model,
-                "greater_than",
-                algorithm="eap",
-                level="node",
-                n_examples=args.max_examples,
-                batch_size=1,
-                sparsity=0.5,
-                output_path=str(output_path),
-            )
-        except Exception:
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            circuit = ck.discover(
-                model,
-                "greater_than",
-                algorithm="eap-ig",
-                level="node",
-                n_examples=args.max_examples,
-                batch_size=1,
-                sparsity=0.5,
-                ig_steps=1,
-                output_path=str(output_path),
-            )
+        circuit = ck.discover(
+            model,
+            "greater_than",
+            algorithm="eap-ig",
+            level="node",
+            n_examples=n_examples,
+            batch_size=1,
+            sparsity=0.5,
+            ig_steps=1,
+            output_path=str(output_path),
+        )
         top_nodes = circuit.top_nodes(min(8, len(circuit)))
         return {
             "task": circuit.task,
@@ -390,7 +403,7 @@ def check_circuitkit(args: argparse.Namespace) -> dict[str, Any]:
             "num_nodes": len(circuit),
             "top_nodes": top_nodes,
             "artifact_path": str(output_path) if output_path.exists() else None,
-            "n_examples": args.max_examples,
+            "n_examples": n_examples,
         }
     finally:
         del model
