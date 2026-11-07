@@ -51,7 +51,31 @@ from dotenv import load_dotenv  # noqa: E402
 # directly; a missing file is fine and leaves the environment untouched.
 load_dotenv(REPO_ROOT / ".env", override=False)
 
-from circuitgraft.registry import device_info, library_versions  # noqa: E402
+try:
+    from circuitgraft.registry import device_info, library_versions  # noqa: E402
+except ImportError:
+    def library_versions() -> dict[str, str]:
+        versions: dict[str, str] = {}
+        for name in (
+            "torch", "transformers", "datasets", "accelerate", "peft", "trl",
+            "safetune", "circuitkit", "auditkit", "curatorkit",
+            "transformer_lens", "huggingface_hub", "safetensors", "numpy",
+        ):
+            try:
+                module = __import__(name)
+                versions[name] = getattr(module, "__version__", "unknown")
+            except Exception:
+                versions[name] = "not-installed"
+        return versions
+
+    def device_info() -> tuple[str | None, str | None]:
+        try:
+            import torch
+            if torch.cuda.is_available():
+                return "cuda", torch.cuda.get_device_name(0)
+            return "cpu", None
+        except Exception:
+            return "cpu", None
 
 DEFAULT_MODEL = "CohereLabs/tiny-aya-global"
 DEFAULT_BASE_MODEL = "CohereLabs/tiny-aya-base"
