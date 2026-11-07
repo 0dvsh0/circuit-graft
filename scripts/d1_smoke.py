@@ -266,8 +266,8 @@ def check_safetune(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def check_circuitkit(args: argparse.Namespace) -> dict[str, Any]:
-    import gc
     import torch
+    from transformers import AutoModelForCausalLM
 
     gc.collect()
     if torch.cuda.is_available():
@@ -276,12 +276,33 @@ def check_circuitkit(args: argparse.Namespace) -> dict[str, Any]:
     import circuitkit as ck
 
     output_path = args.output_dir / "circuitkit_greater_than.pt"
+    device = _resolve_device(args)
+    dtype = _resolve_dtype(args)
+    torch_dtype = getattr(torch, dtype, torch.bfloat16)
+
+    # When running on CUDA, stream the HF weights directly into GPU memory
+    # via device_map="cuda" so TransformerLens conversion does not exceed
+    # Colab's 12.7 GB system RAM.
+    hf_model = None
+    if device == "cuda" and torch.cuda.is_available():
+        hf_model = AutoModelForCausalLM.from_pretrained(
+            _resolve_model(args),
+            torch_dtype=torch_dtype,
+            device_map="cuda",
+            token=os.environ.get("HF_TOKEN"),
+        )
+
     model = ck.load_model(
         _resolve_model(args),
-        dtype=_resolve_dtype(args),
-        device=_resolve_device(args),
-        low_cpu_mem_usage=True,
+        dtype=dtype,
+        device=device,
+        hf_model=hf_model,
     )
+    if hf_model is not None:
+        del hf_model
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
     try:
         circuit = ck.discover(
             model,
