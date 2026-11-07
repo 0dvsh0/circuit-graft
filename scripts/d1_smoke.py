@@ -266,6 +266,13 @@ def check_safetune(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def check_circuitkit(args: argparse.Namespace) -> dict[str, Any]:
+    import gc
+    import torch
+
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
     import circuitkit as ck
 
     output_path = args.output_dir / "circuitkit_greater_than.pt"
@@ -273,6 +280,7 @@ def check_circuitkit(args: argparse.Namespace) -> dict[str, Any]:
         _resolve_model(args),
         dtype=_resolve_dtype(args),
         device=_resolve_device(args),
+        low_cpu_mem_usage=True,
     )
     try:
         circuit = ck.discover(
@@ -622,6 +630,16 @@ def run_all(args: argparse.Namespace) -> int:
 
     if args.proxy or model_ready:
         for name in TOOLKITS:
+            existing_file = output_dir / f"{name}.json"
+            if getattr(args, "skip_existing", False) and existing_file.exists():
+                try:
+                    cached = json.loads(existing_file.read_text(encoding="utf-8"))
+                    if cached.get("status") == "ok":
+                        print(f"[ok, cached] {name}: {existing_file}")
+                        results[name] = cached
+                        continue
+                except Exception:
+                    pass
             results[name] = _run_child(name, args)
     else:
         reason = f"{target_model} is not accessible; accept the licence and set HF_TOKEN"
@@ -695,6 +713,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--preflight-subprocess",
         action="store_true",
         help="Run preflight in a child too (default: in-process, it is cheap).",
+    )
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Skip checks that already passed (status=ok) in output-dir.",
     )
     args = parser.parse_args(argv)
     args.output_dir = Path(args.output_dir).resolve()

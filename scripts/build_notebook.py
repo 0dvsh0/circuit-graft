@@ -23,14 +23,19 @@ nb = {
         {
             "cell_type": "markdown",
             "metadata": {},
-            "source": ["## 1. Verify GPU"],
+            "source": ["## 1. Verify GPU and Configure Memory (Swapfile)"],
         },
         {
             "cell_type": "code",
             "execution_count": None,
             "metadata": {},
             "outputs": [],
-            "source": ["!nvidia-smi"],
+            "source": [
+                "!nvidia-smi\n",
+                "# Allocate swap on Colab disk to prevent Linux OOM-killer during 3.5B weight processing\n",
+                "!fallocate -l 10G /swapfile 2>/dev/null && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile || true\n",
+                "!free -h",
+            ],
         },
         {
             "cell_type": "markdown",
@@ -104,7 +109,7 @@ nb = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "!python scripts/d1_smoke.py --device cuda --output-dir results/d1/smoke"
+                "!python scripts/d1_smoke.py --device cuda --output-dir results/d1/smoke --skip-existing"
             ],
         },
         {
