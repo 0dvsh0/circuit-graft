@@ -1,0 +1,24 @@
+{
+  "toolkit": "auditkit",
+  "status": "ok",
+  "proxy": false,
+  "model": "CohereLabs/tiny-aya-global",
+  "device": "cuda",
+  "dtype": "bfloat16",
+  "started_at": "2026-11-07T12:37:07.633374+00:00",
+  "finished_at": "2026-11-07T12:38:03.933718+00:00",
+  "wall_clock_s": 56.3,
+  "error_type": null,
+  "error": null,
+  "details": {
+    "run_id": "f77eeeedf8d0049b",
+    "fingerprint": "f77eeeedf8d0049b",
+    "headline": {
+      "nonempty": 1.0
+    },
+    "num_predictions": 4,
+    "failed_count": 0,
+    "errors": [],
+    "num_samples": 4
+  }
+}

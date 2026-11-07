@@ -265,9 +265,68 @@ def check_safetune(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+# ---------------------------------------------------------------------------
+# Monkey-patch TransformerLens to avoid float32 upcast OOM on 3.5B+ models
+# ---------------------------------------------------------------------------
+
+
+def patch_transformer_lens_weight_processing() -> None:
+    """Monkey-patch TransformerLens ProcessWeights.process_weights.
+
+    TransformerLens upcasts the entire state_dict to float32 even when all
+    folding/centering flags are False (the default for CircuitKIT). On a 3.5B
+    model, this creates a 14 GB spike that triggers CUDA OutOfMemory on 15 GB
+    GPUs (Tesla T4) or Linux OOM killer (-9) on Colab's 12.7 GB system RAM.
+    """
+    try:
+        import transformer_lens.weight_processing as wp
+    except ImportError:
+        return
+
+    if getattr(wp.ProcessWeights, "_cg_patched", False):
+        return
+
+    orig_process = wp.ProcessWeights.process_weights
+
+    def _fast_process_weights(
+        state_dict: dict[str, Any],
+        cfg: Any,
+        fold_ln: bool = True,
+        center_writing_weights: bool = True,
+        center_unembed: bool = True,
+        fold_value_biases: bool = True,
+        refactor_factored_attn_matrices: bool = False,
+        adapter: Any = None,
+    ) -> dict[str, Any]:
+        if not any(
+            [
+                fold_ln,
+                center_writing_weights,
+                center_unembed,
+                fold_value_biases,
+                refactor_factored_attn_matrices,
+            ]
+        ):
+            return state_dict
+        return orig_process(
+            state_dict,
+            cfg,
+            fold_ln=fold_ln,
+            center_writing_weights=center_writing_weights,
+            center_unembed=center_unembed,
+            fold_value_biases=fold_value_biases,
+            refactor_factored_attn_matrices=refactor_factored_attn_matrices,
+            adapter=adapter,
+        )
+
+    wp.ProcessWeights.process_weights = staticmethod(_fast_process_weights)
+    wp.ProcessWeights._cg_patched = True
+
+
 def check_circuitkit(args: argparse.Namespace) -> dict[str, Any]:
     import torch
-    from transformers import AutoModelForCausalLM
+
+    patch_transformer_lens_weight_processing()
 
     gc.collect()
     if torch.cuda.is_available():
@@ -278,31 +337,12 @@ def check_circuitkit(args: argparse.Namespace) -> dict[str, Any]:
     output_path = args.output_dir / "circuitkit_greater_than.pt"
     device = _resolve_device(args)
     dtype = _resolve_dtype(args)
-    torch_dtype = getattr(torch, dtype, torch.bfloat16)
-
-    # When running on CUDA, stream the HF weights directly into GPU memory
-    # via device_map="cuda" so TransformerLens conversion does not exceed
-    # Colab's 12.7 GB system RAM.
-    hf_model = None
-    if device == "cuda" and torch.cuda.is_available():
-        hf_model = AutoModelForCausalLM.from_pretrained(
-            _resolve_model(args),
-            torch_dtype=torch_dtype,
-            device_map="cuda",
-            token=os.environ.get("HF_TOKEN"),
-        )
 
     model = ck.load_model(
         _resolve_model(args),
         dtype=dtype,
         device=device,
-        hf_model=hf_model,
     )
-    if hf_model is not None:
-        del hf_model
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
     try:
         circuit = ck.discover(
             model,
@@ -327,13 +367,8 @@ def check_circuitkit(args: argparse.Namespace) -> dict[str, Any]:
     finally:
         del model
         gc.collect()
-        try:
-            import torch
-
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-        except Exception:  # noqa: BLE001
-            pass
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
 def check_auditkit(args: argparse.Namespace) -> dict[str, Any]:

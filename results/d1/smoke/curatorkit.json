@@ -1,0 +1,50 @@
+{
+  "toolkit": "curatorkit",
+  "status": "ok",
+  "proxy": false,
+  "model": "CohereLabs/tiny-aya-global",
+  "device": "cuda",
+  "dtype": "bfloat16",
+  "started_at": "2026-11-07T12:38:06.565975+00:00",
+  "finished_at": "2026-11-07T12:38:06.905325+00:00",
+  "wall_clock_s": 0.339,
+  "error_type": null,
+  "error": null,
+  "details": {
+    "passed": 7,
+    "rejected": 0,
+    "stage_counts": {
+      "JSONLReader": {
+        "output_count": 8,
+        "rejected_count": 0
+      },
+      "ExactDeduplicator": {
+        "input_count": 8,
+        "output_count": 7
+      },
+      "TextCleaner": {
+        "input_count": 7,
+        "output_count": 7
+      },
+      "MaxSamplesTruncator": {
+        "input_count": 7,
+        "output_count": 7
+      },
+      "AlpacaExporter": {
+        "exported_count": 7
+      }
+    },
+    "wall_clock_seconds": 0.01637534900009996,
+    "output_dir": "/content/results/d1/smoke/curator_run",
+    "exported_files": [
+      "README.md",
+      "checksums.txt",
+      "dataset_card.md",
+      "lexsi_provenance.json",
+      "manifest.json",
+      "rejected.jsonl",
+      "sft_alpaca.jsonl"
+    ],
+    "summary": "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  passed   :        7\n  rejected :        0\n  time     :     0.0s\n  output   : /content/results/d1/smoke/curator_run\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+  }
+}

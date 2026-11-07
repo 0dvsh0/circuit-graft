@@ -176,6 +176,59 @@ def _selected_nodes(circuit: Any) -> list[str]:
     return [str(node) for node in nodes]
 
 
+def patch_transformer_lens_weight_processing() -> None:
+    """Monkey-patch TransformerLens ProcessWeights.process_weights.
+
+    TransformerLens upcasts the entire state_dict to float32 even when all
+    folding/centering flags are False (the default for CircuitKIT). On a 3.5B
+    model, this creates a 14 GB spike that triggers CUDA OutOfMemory on 15 GB
+    GPUs or Linux OOM killer (-9) on systems with limited CPU RAM.
+    """
+    try:
+        import transformer_lens.weight_processing as wp
+    except ImportError:
+        return
+
+    if getattr(wp.ProcessWeights, "_cg_patched", False):
+        return
+
+    orig_process = wp.ProcessWeights.process_weights
+
+    def _fast_process_weights(
+        state_dict: dict[str, Any],
+        cfg: Any,
+        fold_ln: bool = True,
+        center_writing_weights: bool = True,
+        center_unembed: bool = True,
+        fold_value_biases: bool = True,
+        refactor_factored_attn_matrices: bool = False,
+        adapter: Any = None,
+    ) -> dict[str, Any]:
+        if not any(
+            [
+                fold_ln,
+                center_writing_weights,
+                center_unembed,
+                fold_value_biases,
+                refactor_factored_attn_matrices,
+            ]
+        ):
+            return state_dict
+        return orig_process(
+            state_dict,
+            cfg,
+            fold_ln=fold_ln,
+            center_writing_weights=center_writing_weights,
+            center_unembed=center_unembed,
+            fold_value_biases=fold_value_biases,
+            refactor_factored_attn_matrices=refactor_factored_attn_matrices,
+            adapter=adapter,
+        )
+
+    wp.ProcessWeights.process_weights = staticmethod(_fast_process_weights)
+    wp.ProcessWeights._cg_patched = True
+
+
 def _empty_cuda_cache() -> None:
     try:
         import torch
@@ -211,6 +264,8 @@ def run_circuitkit_discovery(
             f"only node-level discovery is supported, got {level!r}; "
             "the component vocabulary is heads + MLPs"
         )
+
+    patch_transformer_lens_weight_processing()
 
     import circuitkit as ck
 

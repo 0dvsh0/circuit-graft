@@ -1,0 +1,72 @@
+{
+  "pipeline_config_hash": "bc1ee67ef9081c6a",
+  "run_timestamp": "2026-11-07T12:38:06.902806Z",
+  "source_files": [],
+  "stage_counts": {
+    "JSONLReader": {
+      "output_count": 8,
+      "rejected_count": 0
+    },
+    "ExactDeduplicator": {
+      "input_count": 8,
+      "output_count": 7
+    },
+    "TextCleaner": {
+      "input_count": 7,
+      "output_count": 7
+    },
+    "MaxSamplesTruncator": {
+      "input_count": 7,
+      "output_count": 7
+    },
+    "AlpacaExporter": {
+      "exported_count": 7
+    }
+  },
+  "rejected_breakdown": {},
+  "dedup_stats": {
+    "exact_duplicates_removed": 1
+  },
+  "minhash_threshold": null,
+  "sampler_stats": null,
+  "token_stats": {
+    "total_prompt_tokens": 0,
+    "total_completion_tokens": 0,
+    "total_tokens": 0
+  },
+  "wall_clock_seconds": 0.016,
+  "tool_versions": {
+    "curatorkit": "0.1.22",
+    "python": "3.13.16"
+  },
+  "diversity_stats": null,
+  "diagnostic_stats": null,
+  "diagnostic_files": [],
+  "provenance": {
+    "schema": "lexsi.provenance/1",
+    "library": "curatorkit",
+    "version": "0.1.22",
+    "git_sha": null,
+    "created_at": "2026-11-07T12:38:06Z",
+    "base_model": null,
+    "method": "curate",
+    "inputs": [
+      {
+        "kind": "dataset",
+        "ref": "/content/results/d1/smoke/curator_input.jsonl",
+        "config": null,
+        "provenance": null
+      }
+    ],
+    "params": {
+      "generator_model": null,
+      "judge_model": null,
+      "grpo_scoring_model": null,
+      "export_formats": [
+        "alpaca"
+      ],
+      "output_split": null,
+      "pipeline_config_hash": "bc1ee67ef9081c6a"
+    }
+  }
+}

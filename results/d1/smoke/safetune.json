@@ -1,0 +1,78 @@
+{
+  "toolkit": "safetune",
+  "status": "ok",
+  "proxy": false,
+  "model": "CohereLabs/tiny-aya-global",
+  "device": "cuda",
+  "dtype": "bfloat16",
+  "started_at": "2026-11-07T12:34:40.796659+00:00",
+  "finished_at": "2026-11-07T12:36:31.006637+00:00",
+  "wall_clock_s": 110.21,
+  "error_type": null,
+  "error": null,
+  "details": {
+    "num_units": 32,
+    "num_layers": 28,
+    "unit_ids_head": [
+      "blocks.29.mlp",
+      "blocks.32.mlp",
+      "blocks.35.mlp",
+      "blocks.26.mlp",
+      "blocks.34.mlp",
+      "blocks.20.mlp",
+      "blocks.30.mlp",
+      "blocks.13.mlp"
+    ],
+    "target_modules": [
+      "down_proj",
+      "gate_proj",
+      "k_proj",
+      "o_proj",
+      "q_proj",
+      "up_proj",
+      "v_proj"
+    ],
+    "layer_subset": [
+      0,
+      5,
+      6,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35
+    ],
+    "raw_output_path": "/content/results/d1/smoke/safetune_eap_raw/eap_scores.json",
+    "metadata_keys": [
+      "extra",
+      "granularity",
+      "ig_steps",
+      "intervention",
+      "method"
+    ],
+    "prompts": {
+      "harmful": 4,
+      "harmless": 4
+    }
+  }
+}
