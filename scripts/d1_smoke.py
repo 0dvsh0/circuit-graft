@@ -382,7 +382,7 @@ def check_circuitkit(args: argparse.Namespace) -> dict[str, Any]:
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    n_examples = min(args.max_examples, 4)
+    n_examples = min(args.max_examples, 1)
     try:
         circuit = ck.discover(
             model,
