@@ -225,6 +225,49 @@ def existing_manifest(directory: str | Path) -> Manifest | None:
         return None
 
 
+def resolve_stage_file(path: str | Path) -> Path:
+    """Resolve a configured stage artifact, preferring the newest completed run.
+
+    Stage configs point at stable paths such as
+    ``artifacts/discover/safety/scores.json`` while the stage actually writes
+    ``artifacts/discover/discover-<hash>/safety/scores.json``. A literal file
+    always wins (so an explicit copy is honoured); otherwise the newest run
+    directory containing the same relative path is used, provided its manifest
+    is ``complete`` (or absent, for pre-manifest fixtures).
+
+    Only repo-relative ``artifacts/<stage>/...`` paths participate; everything
+    else is returned unchanged and the caller reports a normal missing file.
+    """
+    configured = Path(path)
+    if configured.is_absolute():
+        return configured if configured.exists() else configured
+    if configured.exists():
+        return configured
+
+    parts = configured.parts
+    if len(parts) >= 3 and parts[0] == "artifacts":
+        stage = parts[1]
+        relative = Path(*parts[2:])
+        stage_dir = REPO_ROOT / "artifacts" / stage
+        if stage_dir.is_dir():
+            run_dirs = sorted(
+                (item for item in stage_dir.iterdir() if item.is_dir()),
+                key=lambda item: item.stat().st_mtime,
+                reverse=True,
+            )
+            for run_dir in run_dirs:
+                candidate = run_dir / relative
+                if not candidate.exists():
+                    continue
+                manifest = existing_manifest(run_dir)
+                if (
+                    manifest is None
+                    or (manifest.stage == stage and manifest.status == "complete")
+                ):
+                    return candidate
+    return configured
+
+
 def should_skip(
     directory: str | Path, config_hash: str, input_hashes: dict[str, str]
 ) -> bool:

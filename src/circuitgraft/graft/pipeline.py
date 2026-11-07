@@ -39,6 +39,7 @@ from circuitgraft.registry import (
     hash_paths,
     load_json,
     new_manifest,
+    resolve_stage_file,
     sha256_file,
     should_skip,
 )
@@ -177,9 +178,9 @@ def load_layout(ref: str | Path) -> Cohere2Layout:
 
 def _hash_inputs(cfg: GraftConfig, base: BaseConfig) -> dict[str, str]:
     local_files = [
-        _repo_path(path)
+        _repo_path(resolve_stage_file(path))
         for path in (cfg.safety_scores, cfg.domain_scores, cfg.fisher_path)
-        if path and _repo_path(path).exists()
+        if path and _repo_path(resolve_stage_file(path)).exists()
     ]
     hashes = hash_paths(local_files) if local_files else {}
     for label, ref in (
@@ -218,7 +219,7 @@ def _save_checkpoint(state: Mapping[str, torch.Tensor], out_dir: Path, source_di
 
 
 def _load_fisher(path: str | Path) -> dict[str, torch.Tensor]:
-    path = _repo_path(path)
+    path = _repo_path(resolve_stage_file(path))
     if not path.exists():
         raise FileNotFoundError(f"fisher_gate is enabled but fisher_path does not exist: {path}")
     return dict(load_file(path))
@@ -260,8 +261,12 @@ def run_graft(
     if layout is None:
         layout = load_layout(base.models.base)
 
-    safety_scores = load_scores(_repo_path(cfg.safety_scores), layout=layout)
-    domain_scores = load_scores(_repo_path(cfg.domain_scores), layout=layout)
+    safety_scores = load_scores(
+        _repo_path(resolve_stage_file(cfg.safety_scores)), layout=layout
+    )
+    domain_scores = load_scores(
+        _repo_path(resolve_stage_file(cfg.domain_scores)), layout=layout
+    )
     if not safety_scores:
         raise ValueError(f"safety score file is empty: {cfg.safety_scores}")
     if not domain_scores:

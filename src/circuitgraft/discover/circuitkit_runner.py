@@ -27,6 +27,7 @@ from circuitgraft.config import (
     config_hash,
 )
 from circuitgraft.discover.overlap import (
+    circuit_info_payload,
     convert_scores,
     jaccard,
     read_score_payload,
@@ -278,6 +279,20 @@ def run_circuitkit_discovery(
                 "device": effective_device,
             },
         )
+        # SafeTune's CircuitKIT adapter reads this bridge; C-Θ and CircuitGraft
+        # therefore consume the same discovery run. ``scores_file`` is relative
+        # to this directory so the lineage check is portable.
+        circuit_info_path = dump_json(
+            output_dir / "circuit_info.json",
+            circuit_info_payload(
+                scores,
+                kind=kind,
+                model=str(model_ref),
+                source="circuitkit",
+                scores_file=scores_path.name,
+                scores_sha256=sha256_file(scores_path),
+            ),
+        )
         selection_path = dump_json(
             output_dir / "selected.json",
             {
@@ -327,6 +342,7 @@ def run_circuitkit_discovery(
         "task": task.name,
         "artifact_path": str(artifact_path),
         "scores_path": str(scores_path),
+        "circuit_info_path": str(circuit_info_path),
         "selection_path": str(selection_path),
         "num_components": len(scores),
         "num_selected_nodes": len(selected),
@@ -546,7 +562,9 @@ def run_discovery(
         dump_json(summary_path, summary)
         outputs = {
             "safety/scores.json": sha256_file(safety["scores_path"]),
+            "safety/circuit_info.json": sha256_file(safety["circuit_info_path"]),
             "domain/scores.json": sha256_file(domain["scores_path"]),
+            "domain/circuit_info.json": sha256_file(domain["circuit_info_path"]),
             "overlap.json": sha256_file(overlap_path),
             "summary.json": sha256_file(summary_path),
         }

@@ -1,9 +1,15 @@
 method: ctheta
 model: drifted
-# Must be the identical circuit file consumed by every CircuitGraft config.
+# Resolved to the newest completed `artifacts/discover/discover-*/safety/`
+# run when this literal path does not exist. S4 writes the bridge file from the
+# same scores.json that CircuitGraft consumes.
 source_circuit: artifacts/discover/safety/circuit_info.json
 params:
   strength: 1.0
+  # Top fraction of discovered nodes aggregated into SafeTune layer/module
+  # suggestions. 0.05 mirrors the graft config's k_s; apply_ctheta cannot use
+  # the per-head units, so the resulting mask is coarser by construction.
+  top_fraction: 0.05
 sweep:
   strength: [0.25, 0.5, 1.0, 1.5]
 output_dir: artifacts/baselines

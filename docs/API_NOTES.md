@@ -129,6 +129,30 @@ examples before the S5 baseline is run; the installed docstring only says
 Other Faithful entry points confirmed in `safetune.recover`:
 `apply_wise_ft`, `apply_safe_lora`, `apply_lox`, `task_arithmetic`.
 
+### Recovery function integration details (verified in S5)
+
+- **`apply_safe_lora`:** Supports two operation modes:
+  1. *Merged state-dict mode:* When operating on fully-merged checkpoints,
+     passing `drifted` as the model, and supplying `aligned_state_dict` and
+     `base_state_dict`. It projects $(W_{\text{drifted}} - W_{\text{aligned}})$
+     onto the null space of the safety subspace.
+  2. *PEFT adapter mode:* When `adapter_path` is configured, loads base with
+     the adapter, applies recovery, and calls `merge_and_unload()`.
+- **`apply_ctheta` bridge:**
+  `safetune.core.circuit_kit.adapter.load_circuit_info_from_file(path, top_fraction=...)`
+  accepts CircuitKIT-derived `node_scores` dictionaries (e.g. `{"A0.0": 1.0, "MLP 0": 0.8}`),
+  aggregates scores by layer and module, and produces `LayerModuleSuggestions`.
+  S4 writes `circuit_info.json` along with `scores.json` and verifies lineage via SHA256.
+- **`refusal_steer` exclusion:**
+  `refusal_steer` is an inference-time activation steering method, not a
+  weight-recovery function in `safetune.recover`. S5 explicitly raises
+  `NotImplementedError`.
+- **CPU execution rationale:**
+  RESTA, C-ΔΘ, LoX and Task Arithmetic require base, aligned, and drifted
+  models in memory simultaneously (~3x 3.5B params = ~21 GB in bfloat16), which
+  exceeds standard 16 GB GPU memory. Weight arithmetic runs on CPU in S5 and
+  saves standard safetensors checkpoints.
+
 ### `apply_ctheta` cannot consume a per-head mask
 
 `apply_ctheta` reads only `circuit_info.layer_suggestions`:

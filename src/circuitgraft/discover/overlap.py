@@ -253,6 +253,49 @@ def write_scores(
     return path
 
 
+def circuit_info_payload(
+    scores: Mapping[str, float],
+    *,
+    kind: str,
+    model: str | None = None,
+    source: str = "circuitkit",
+    scores_file: str | None = None,
+    scores_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Build a SafeTune-compatible ``CircuitInfo`` bridge from canonical scores.
+
+    The payload uses CircuitKIT node names (``A{l}.{h}`` / ``MLP {l}``) and the
+    ``node_scores`` key understood by ``load_circuit_info_from_file``. SafeTune's
+    own adapter therefore performs the layer/module aggregation, which is the
+    integration point SPEC §4.4 requires for the C-ΔΘ baseline.
+
+    ``scores_file`` (relative to this file's directory) and
+    ``scores_sha256`` let the baseline verify that the bridge is still derived
+    from the discovery score file rather than a stale copy.
+    """
+    node_scores: dict[str, float] = {}
+    for component_id, score in scores.items():
+        node_scores[component_to_circuitkit(component_id)] = float(score)
+    metadata: dict[str, Any] = {
+        "source": source,
+        "kind": kind,
+        "model": model,
+        "component_vocabulary": "circuitkit",
+        "scores_file": scores_file,
+        "scores_sha256": scores_sha256,
+        "note": (
+            "SafeTune apply_ctheta consumes layer_suggestions only, so the "
+            "resulting mask is layer/module-matched, not head-identical to "
+            "CircuitGraft."
+        ),
+    }
+    return {
+        "node_scores": dict(sorted(node_scores.items())),
+        "metadata": metadata,
+    }
+
+
+
 def jaccard(left: Iterable[str | Component], right: Iterable[str | Component]) -> float:
     left_set = {c if isinstance(c, Component) else Component.parse(c) for c in left}
     right_set = {c if isinstance(c, Component) else Component.parse(c) for c in right}

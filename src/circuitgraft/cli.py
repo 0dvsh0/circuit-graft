@@ -250,15 +250,21 @@ def discover(
 def baselines(
     config: Path = typer.Option(Path("configs/baselines/resta.yaml"), "--config"),
     dry_run: bool = typer.Option(False, "--dry-run"),
+    sweep: bool = typer.Option(
+        False, "--sweep", help="Run every point in the config's sweep grid."
+    ),
 ) -> None:
     """S5: SafeTune faithful recovery baselines."""
-    from circuitgraft.baselines.safetune_recover import run_baseline
+    from circuitgraft.baselines.safetune_recover import run_baseline, run_baseline_sweep
 
     cfg = load_config(config, BaselineConfig)
     if dry_run:
         _run_stage("baselines", cfg, True)
         return
-    run_baseline(cfg, _base())
+    if sweep:
+        run_baseline_sweep(cfg, _base())
+    else:
+        run_baseline(cfg, _base())
 
 
 @app.command()

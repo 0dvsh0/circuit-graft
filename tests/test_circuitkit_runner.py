@@ -217,12 +217,17 @@ def _fake_stage_result(out_dir: Path, *, scores: dict[str, float]) -> dict[str, 
     scores_path.write_text(
         json.dumps({"components": scores}), encoding="utf-8"
     )
+    circuit_info_path = out_dir / "circuit_info.json"
+    circuit_info_path.write_text(
+        json.dumps({"node_scores": scores, "metadata": {}}), encoding="utf-8"
+    )
     return {
         "kind": "safety",
         "model": "fake-model",
         "task": "fake-task",
         "artifact_path": str(out_dir / "circuit.pt"),
         "scores_path": str(scores_path),
+        "circuit_info_path": str(circuit_info_path),
         "selection_path": str(out_dir / "selected.json"),
         "num_components": len(scores),
         "num_selected_nodes": len(scores),

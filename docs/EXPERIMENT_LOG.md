@@ -444,6 +444,51 @@ git-ignored `artifacts/` tree and are hashed by the manifest.
 5. The pooled AuditKIT runs needed benchmark-prefixed IDs to avoid collisions
    between `medmcqa_validation` and `mmlu_non_medical` row IDs.
 
+## 2026-11-07 - S5 baselines implementation and offline tests
+
+**Goal:** implement the S5 baselines stage (`circuitgraft.baselines.safetune_recover`)
+covering SafeTune Faithful methods (`resta`, `wiseft`, `ctheta`, `safelora`,
+`lox`, `task_arith`), manifest lineage, circuit adapter integration for C-ΔΘ,
+and offline verification tests.
+
+**Commands:**
+
+```powershell
+.venv\Scripts\pytest -q
+.venv\Scripts\ruff.exe check src tests
+Get-ChildItem configs -Recurse -Filter *.yaml | ForEach-Object {
+  .venv\Scripts\cg.exe config-check $_.FullName
+}
+```
+
+**Outcome:** `148 passed`, 1 warning (upstream TransformerLens deprecation);
+ruff clean; all configs pass validation.
+
+**Implementation:**
+
+- `baselines/safetune_recover.py`: functional dispatch for `resta`, `wiseft`,
+  `ctheta`, `safelora`, `lox`, `task_arithmetic`.
+- Explicit rejection of `refusal_steer` with `NotImplementedError`
+  (inference-time activation steering, not a SafeTune recover function).
+- Labelling C-ΔΘ as `"C-ΔΘ (SafeTune weight-arithmetic implementation)"`
+  everywhere per SPEC §2.1.
+- Circuit bridge integration: `apply_ctheta` loads CircuitKIT discovery output
+  via `safetune.core.circuit_kit.adapter.load_circuit_info_from_file`, records
+  the source scores SHA256 lineage, and profiles the parameter mask at
+  layer/module granularity (explicitly documenting the limitation that SafeTune
+  does not consume per-head units).
+- Checkpoint directory layout: `artifacts/baselines/<method>-<config_hash>/merged`
+  with `manifest.json` and `baseline_stats.json`. S7's `artifacts/baselines/{name}*`
+  checkpoint resolver matches these outputs.
+- `resolve_stage_file` in `circuitgraft.registry`: allows stage configs to
+  reference stable paths like `artifacts/discover/safety/circuit_info.json`
+  which dynamically resolve to the latest completed discovery run.
+- CLI: `cg baselines` supports `--config`, `--dry-run`, and `--sweep`.
+- Offline test suite: 13 tests in `tests/test_baselines.py` covering parameter
+  validation, sweep cartesian products, dispatch kwargs, manifest inputs/outputs,
+  idempotent skipping, C-ΔΘ circuit lineage checks and mask summaries, and
+  Safe LoRA merged vs. PEFT modes.
+
 ## Open items
 
 1. Human lead accepts the `CohereLabs/tiny-aya-global` licence (base is already
@@ -455,8 +500,8 @@ git-ignored `artifacts/` tree and are hashed by the manifest.
    `results/d1/smoke/` as the G0 evidence.
 4. Keep `docs/PREREGISTRATION.md` DRAFT until G0 is resolved; review, freeze
    and commit it before any Phase 4 experiment.
-5. Implement the remaining stage modules (baselines, attacks, report, publish)
-   and their tests. S1, S2, S4, S6 and S7 are implemented; S1/S7 have CPU
+5. Implement the remaining stage modules (attacks S8, report S9, publish S10)
+   and their tests. S1, S2, S4, S5, S6 and S7 are implemented; S1/S7 have CPU
    proxy smoke evidence only, and no Tiny Aya experiment has run.
 6. Run `cg data` with gated benchmarks and an LLM key, complete the pair and
    domain-sensitive human reviews, then claim G1.
