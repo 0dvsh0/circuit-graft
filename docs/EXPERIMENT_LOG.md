@@ -489,22 +489,55 @@ ruff clean; all configs pass validation.
   idempotent skipping, C-ΔΘ circuit lineage checks and mask summaries, and
   Safe LoRA merged vs. PEFT modes.
 
+## 2026-11-07 - Real Tiny Aya & gated dataset access confirmed; S8 attacks implementation
+
+**Goal:** verify unblocked access to `CohereLabs/tiny-aya-global`, the 5 gated
+eval datasets, and `COHERE_API_KEY`; verify real architecture against
+`Cohere2Layout`; provide Colab G0 execution notebook; implement S8 attacks
+stage (`abliterate`, `harmful_ft`, `quantize`) with offline tests.
+
+**Access check outcomes:**
+
+- `CohereLabs/tiny-aya-global`: accessible (status: ok).
+- `CohereLabs/tiny-aya-base`: accessible (status: ok).
+- Gated datasets: `walledai/HarmBench`, `walledai/AdvBench`,
+  `sorry-bench/sorry-bench-202503`, `allenai/wildjailbreak`, `walledai/XSTest` all verified accessible.
+- `COHERE_API_KEY`: verified active with `c4ai-aya-expanse-32b` via LiteLLM.
+- Model config introspection: `cohere2` architecture with 36 layers, 2048 hidden,
+  16 heads, 4 KV heads, 128 head dim, 11008 intermediate size. Matches `Cohere2Layout` exactly.
+- Tokenizer chat template: verified present; system preamble renders to 367 tokens.
+- Real preflight recorded: `results/d1/preflight_real/preflight.json` (`status = ok`).
+- Colab GPU smoke notebook: created `notebooks/run_d1_g0_smoke.ipynb` to execute
+  `scripts/d1_smoke.py --device cuda --output-dir results/d1/smoke` on Colab GPU.
+
+**S8 Implementation:**
+
+- `attacks/abliterate.py`: SafeTune `AbliterationAttack` wrapping `fit(harmful, harmless)`
+  and `run(mode="weight_orthogonalize" | "runtime_ablate")`. Adaptive direction fitting
+  on each target model, contrast prompt loader, weight saving, and manifest lineage.
+- `attacks/harmful_ft.py`: LoRA re-fine-tuning attack on harmful-compliance examples
+  for 50 / 100 / 200 steps at lr 1e-4. Policy-enforced: requires explicit harmful rows
+  JSONL and marks status="blocked" without it; never generates harmful content.
+- `attacks/quantize.py`: Uniform 4-bit (NF4) and 8-bit quantization via bitsandbytes;
+  circuit-aware mixed-precision plan protecting top safety-circuit layers via
+  `compute_circuit_aware_plan`.
+- `attacks/runner.py`: top-level `run_attack(cfg, base, attack_type="...")` dispatcher.
+- `tests/test_attacks.py`: 8 offline tests covering prompt loading, abliteration
+  weight orthogonalization, runtime ablation hooks, harmful-FT policy blocking,
+  explicit training mock, circuit-aware layer protection plans, and CLI dispatch.
+
+**Outcome:** `156 passed`, 1 warning (upstream TransformerLens deprecation);
+ruff clean; all configs pass validation.
+
 ## Open items
 
-1. Human lead accepts the `CohereLabs/tiny-aya-global` licence (base is already
-   accessible) and the five gated datasets listed in `docs/API_NOTES.md`.
-2. Re-run `cg doctor --check-models`; confirm the real architecture against
-   `Cohere2Layout` and verify the tokenizer/chat-template length on the
-   aligned checkpoint.
-3. Run `scripts/d1_smoke.py --device cuda` on Colab/Kaggle and archive
-   `results/d1/smoke/` as the G0 evidence.
-4. Keep `docs/PREREGISTRATION.md` DRAFT until G0 is resolved; review, freeze
+1. Run `notebooks/run_d1_g0_smoke.ipynb` on Google Colab (GPU runtime) or run
+   `scripts/d1_smoke.py --device cuda --output-dir results/d1/smoke`, and download
+   the resulting archive into `results/d1/smoke/` to claim Gate G0.
+2. Run `cg data` with now-accessible gated datasets and active Cohere key,
+   complete the 10% human-review CSV, and claim G1.
+3. Keep `docs/PREREGISTRATION.md` DRAFT until G0 is resolved; review, freeze
    and commit it before any Phase 4 experiment.
-5. Implement the remaining stage modules (attacks S8, report S9, publish S10)
-   and their tests. S1, S2, S4, S5, S6 and S7 are implemented; S1/S7 have CPU
-   proxy smoke evidence only, and no Tiny Aya experiment has run.
-6. Run `cg data` with gated benchmarks and an LLM key, complete the pair and
-   domain-sensitive human reviews, then claim G1.
-7. Run a real S2 LoRA training and S7 evaluation on remote GPU once
-   `CohereLabs/tiny-aya-global` access is granted; do not reuse the SmolLM
-   proxy run as evidence.
+4. Implement remaining stages: S9 report (`tables.py`, `plots.py`, `inject_readme.py`)
+   and S10 publish (`publish.py`). S1 through S8 are now implemented.
+5. Run S2 LoRA training and S7 evaluation on GPU with real `CohereLabs/tiny-aya-global`.

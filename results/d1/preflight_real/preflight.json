@@ -1,0 +1,49 @@
+{
+  "toolkit": "preflight",
+  "status": "ok",
+  "proxy": false,
+  "model": "CohereLabs/tiny-aya-global",
+  "device": "cpu",
+  "dtype": "float32",
+  "started_at": "2026-11-07T11:45:38.516544+00:00",
+  "finished_at": "2026-11-07T11:45:48.245462+00:00",
+  "wall_clock_s": 9.729,
+  "error_type": null,
+  "error": null,
+  "details": {
+    "token_present": true,
+    "environment": {
+      "python": "3.12.15",
+      "platform": "win32",
+      "device": "cpu",
+      "gpu": null,
+      "cuda_available": false,
+      "cuda_version": null,
+      "versions": {
+        "torch": "2.15.0+cpu",
+        "transformers": "5.22.1",
+        "datasets": "5.1.0",
+        "accelerate": "1.15.0",
+        "peft": "0.21.2",
+        "trl": "1.14.2",
+        "safetune": "0.1.12",
+        "circuitkit": "0.2.0",
+        "auditkit": "1.1.3",
+        "curatorkit": "0.1.22",
+        "transformer_lens": "unknown",
+        "huggingface_hub": "1.33.0",
+        "safetensors": "0.8.0",
+        "numpy": "2.5.4"
+      },
+      "hf_org": "dubeydevansh"
+    },
+    "model_access": {
+      "CohereLabs/tiny-aya-global": {
+        "status": "ok"
+      },
+      "CohereLabs/tiny-aya-base": {
+        "status": "ok"
+      }
+    }
+  }
+}
