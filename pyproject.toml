@@ -7,7 +7,7 @@ name = "circuitgraft"
 version = "0.1.0"
 description = "Circuit-aware safety recovery for domain-fine-tuned Cohere Tiny Aya models"
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12,<3.14"
 license = { text = "Apache-2.0" }
 authors = [{ name = "CircuitGraft team" }]
 keywords = ["safety", "mechanistic-interpretability", "circuit", "fine-tuning", "tiny-aya"]
@@ -16,6 +16,7 @@ classifiers = [
   "Intended Audience :: Science/Research",
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 

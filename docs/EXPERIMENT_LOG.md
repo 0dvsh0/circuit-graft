@@ -747,6 +747,9 @@ Colab notebook, and prepare the Git tree for remote execution on Tesla T4.
 - `notebooks/run_phase4_colab.ipynb`: 10-stage resumable runner featuring Google Drive
   real-time artifact persistence (`circuit_graft_phase4/`), 10 GB disk swapfile,
   15-minute quick calibration pass, and staged execution of S1 through S10.
+- `pyproject.toml`: expanded `requires-python` from `>=3.12,<3.13` to `>=3.12,<3.14`
+  and added Python 3.13 classifier to support Google Colab's default Python 3.13.18
+  runtime.
 
 **Verification (local, CPU-only):**
 
