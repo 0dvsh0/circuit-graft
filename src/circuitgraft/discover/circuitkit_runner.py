@@ -239,6 +239,30 @@ def _empty_cuda_cache() -> None:
         pass
 
 
+def _apply_memory_controls(model: Any, *, max_seq_len: int) -> None:
+    """Bound activation memory for CircuitKIT EAP-IG discovery.
+
+    The D1 smoke run fit Tiny Aya on a 15 GB T4 by capping the context and
+    freezing non-embedding parameters (see ``docs/EXPERIMENT_LOG.md``).
+    EAP-IG differentiates through activations, so parameter gradients are not
+    needed. Applying the same controls to the full runner keeps a 1024-token
+    context from requesting ~27 GB of activation storage.
+    """
+    cfg = getattr(model, "cfg", None)
+    current_ctx = getattr(cfg, "n_ctx", None) if cfg is not None else None
+    if isinstance(current_ctx, int) and max_seq_len:
+        cfg.n_ctx = min(current_ctx, max(int(max_seq_len), 128))
+
+    named_parameters = getattr(model, "named_parameters", None)
+    if callable(named_parameters):
+        for name, param in named_parameters():
+            if not (name.startswith("embed") or name.startswith("pos_embed")):
+                param.requires_grad = False
+
+    gc.collect()
+    _empty_cuda_cache()
+
+
 def run_circuitkit_discovery(
     model_ref: str | Path,
     pairs_path: str | Path,
@@ -307,8 +331,13 @@ def run_circuitkit_discovery(
         )
     finally:
         torch.set_default_dtype(torch.float32)
-    if hasattr(model, "cfg") and hasattr(model.cfg, "n_ctx") and max_seq_len:
-        model.cfg.n_ctx = min(model.cfg.n_ctx, max(max_seq_len, 128))
+    _apply_memory_controls(model, max_seq_len=max_seq_len)
+    logger.info(
+        "discovery memory controls: n_ctx=%s, batch_size=%s, max_seq_len=%s",
+        getattr(getattr(model, "cfg", None), "n_ctx", None),
+        batch_size,
+        max_seq_len,
+    )
     artifact_path = output_dir / "circuit.pt"
     try:
         circuit = ck.discover(

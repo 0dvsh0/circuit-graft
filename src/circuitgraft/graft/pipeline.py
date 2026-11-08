@@ -75,6 +75,31 @@ def _local_model_path(ref: str | Path) -> Path | None:
     return None
 
 
+_LOCAL_ROOTS = frozenset({"artifacts", "results", "checkpoints", "data", "models", "outputs"})
+_LOCAL_SUFFIXES = (".safetensors", ".bin", ".pt", ".pth", ".json")
+
+
+def _is_local_ref(ref: str | Path) -> bool:
+    """Return True when ``ref`` names a project path rather than a Hub repo id."""
+    text = str(ref).strip()
+    if not text:
+        return False
+    path = Path(text)
+    if path.is_absolute() or text.startswith((".", "~")):
+        return True
+    if text.endswith(_LOCAL_SUFFIXES):
+        return True
+    first = text.replace("\\", "/").split("/", 1)[0]
+    return first in _LOCAL_ROOTS
+
+
+def _missing_checkpoint_error(ref: str | Path) -> FileNotFoundError:
+    return FileNotFoundError(
+        f"checkpoint {str(ref)!r} looks like a local path but does not exist. "
+        "Run the stage that produces it, or set the reference to a Hugging Face repo id."
+    )
+
+
 def materialize_model(ref: str | Path) -> Path:
     """Return a local directory for a checkpoint reference.
 
@@ -86,6 +111,8 @@ def materialize_model(ref: str | Path) -> Path:
     local = _local_model_path(ref)
     if local is not None:
         return local if local.is_dir() else local.parent
+    if _is_local_ref(ref):
+        raise _missing_checkpoint_error(ref)
 
     from huggingface_hub import snapshot_download
 
@@ -161,6 +188,8 @@ def load_layout(ref: str | Path) -> Cohere2Layout:
     if local is not None and local.is_dir() and (local / "config.json").exists():
         config = json.loads((local / "config.json").read_text(encoding="utf-8"))
     else:
+        if _is_local_ref(ref):
+            raise _missing_checkpoint_error(ref)
         from transformers import AutoConfig
 
         config = AutoConfig.from_pretrained(

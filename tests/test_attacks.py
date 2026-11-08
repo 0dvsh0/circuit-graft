@@ -276,3 +276,22 @@ def test_attack_runner_dispatch(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="unknown attack type"):
         run_attack(cfg, base, attack_type="bogus")
+
+
+def test_default_loader_returns_model_tokenizer_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from circuitgraft.attacks import abliterate
+
+    model, tokenizer = object(), object()
+
+    def fake_load(ref: str, *, dtype: str, device: str):
+        del ref, dtype, device
+        return model, tokenizer, "cpu"
+
+    monkeypatch.setattr(
+        "circuitgraft.eval.models.load_model_and_tokenizer", fake_load
+    )
+    loaded_model, loaded_tokenizer = abliterate._default_loader("fake", dtype="float32")
+    assert loaded_model is model
+    assert loaded_tokenizer is tokenizer

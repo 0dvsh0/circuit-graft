@@ -9,13 +9,14 @@ from typing import Any
 
 import pytest
 
-from circuitgraft.config import BaseConfig, EvalConfig, JudgeConfig
+from circuitgraft.config import BaseConfig, EvalConfig, JudgeConfig, ModelRefs
 from circuitgraft.eval.auditkit_runs import (
     compare_mcq_audits,
     run_mcq_audit,
     run_redteam_probes,
 )
 from circuitgraft.eval.domain import aggregate_items, parse_answer, score_mcq_rows
+from circuitgraft.eval.models import resolve_checkpoint
 from circuitgraft.eval.pipeline import run_eval
 from circuitgraft.eval.safety import (
     human_audit_directory,
@@ -37,6 +38,21 @@ def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     with path.open("r", encoding="utf-8") as handle:
         return [json.loads(line) for line in handle if line.strip()]
+
+
+def test_resolve_checkpoint_rejects_missing_local_artifact() -> None:
+    base = BaseConfig(
+        models=ModelRefs(drifted="artifacts/drift/scenarioA_seed0/merged")
+    )
+    cfg = EvalConfig(models=["drifted"], model_paths={})
+    with pytest.raises(FileNotFoundError, match="looks like a local path"):
+        resolve_checkpoint("drifted", cfg, base)
+
+
+def test_resolve_checkpoint_keeps_repo_id_for_hub_models() -> None:
+    base = BaseConfig(models=ModelRefs(aligned="CohereLabs/tiny-aya-global"))
+    cfg = EvalConfig(models=["aligned"], model_paths={})
+    assert resolve_checkpoint("aligned", cfg, base) == "CohereLabs/tiny-aya-global"
 
 
 def test_parse_answer_prefers_explicit_span() -> None:

@@ -20,7 +20,7 @@ from circuitgraft.eval.models import (
     _candidate_patterns,
     _manifest_allows,
     checkpoint_dir,
-    local_path,
+    local_path_or_raise,
 )
 from circuitgraft.registry import (
     REPO_ROOT,
@@ -71,9 +71,14 @@ def resolve_attack_model(name: str, base: BaseConfig) -> Path:
         "aligned": base.models.aligned,
         "drifted": base.models.drifted,
     }
-    if name in special and special[name]:
-        local = local_path(special[name])
-        return local if local is not None else Path(special[name])
+    if name in special:
+        ref = special[name]
+        if not ref:
+            raise ValueError(
+                f"models.{name} is empty; run the stage that produces it or set the reference"
+            )
+        local = local_path_or_raise(ref, context=f"models.{name}")
+        return local if local is not None else Path(ref)
 
     for pattern in _candidate_patterns(name):
         candidates = sorted(
@@ -86,7 +91,7 @@ def resolve_attack_model(name: str, base: BaseConfig) -> Path:
             if ckpt is not None and _manifest_allows(cand):
                 return ckpt
 
-    local = local_path(name)
+    local = local_path_or_raise(name, context=f"attack target {name!r}")
     return local if local is not None else Path(name)
 
 
@@ -134,7 +139,8 @@ def load_contrast_prompts(
 def _default_loader(ref: str, *, dtype: str = "bfloat16") -> tuple[Any, Any]:
     from circuitgraft.eval.models import load_model_and_tokenizer
 
-    return load_model_and_tokenizer(ref, device="cpu", dtype=dtype)
+    model, tokenizer, _device = load_model_and_tokenizer(ref, device="cpu", dtype=dtype)
+    return model, tokenizer
 
 
 def _default_save_model(

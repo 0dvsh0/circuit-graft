@@ -9,8 +9,11 @@ safety:
   ig_steps: 5
   n_examples: 256
   sparsity: 0.3
-  max_seq_len: 1024       # must cover Tiny Aya's ~366-token preamble if used
-  batch_size: 4
+  # Pairs are rendered without the ~366-token system preamble
+  # (configs/data.yaml: pairs.include_system_preamble=false), so 256 tokens
+  # is ample. Keep this small: CircuitKIT sizes activation caches from it.
+  max_seq_len: 256
+  batch_size: 1            # T4-safe; scale activations ~batch x seq
   metric: logit_diff
   # Filled empirically on D4 by scripts/choose_tokens.py; empty = discover.
   refusal_tokens: []
@@ -25,8 +28,8 @@ domain:
   ig_steps: 5
   n_examples: 256
   sparsity: 0.3
-  max_seq_len: 1024
-  batch_size: 4
+  max_seq_len: 256         # same rendering as the safety pairs
+  batch_size: 1            # T4-safe
   metric: logit_diff
 
 cross_check: true

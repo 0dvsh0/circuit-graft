@@ -12,7 +12,13 @@ from safetensors.torch import load_file, save_file
 from circuitgraft.components import Cohere2Layout
 from circuitgraft.config import BaseConfig, ModelRefs
 from circuitgraft.discover.overlap import write_scores
-from circuitgraft.graft.pipeline import _save_checkpoint, load_layout, load_state_dict, run_graft
+from circuitgraft.graft.pipeline import (
+    _save_checkpoint,
+    load_layout,
+    load_state_dict,
+    materialize_model,
+    run_graft,
+)
 from tests.helpers import full_scores, make_graft_config, make_state
 
 
@@ -31,6 +37,11 @@ def _write_model(directory: Path, layout: Cohere2Layout, *, seed: int) -> dict[s
     }
     (directory / "config.json").write_text(json.dumps(config), encoding="utf-8")
     return state
+
+
+def test_materialize_model_rejects_missing_local_artifact() -> None:
+    with pytest.raises(FileNotFoundError, match="looks like a local path"):
+        materialize_model("artifacts/drift/scenarioA_seed0/merged")
 
 
 def test_load_state_dict_single_and_sharded(tmp_path, layout: Cohere2Layout) -> None:

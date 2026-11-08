@@ -48,6 +48,49 @@ def local_path(ref: str | Path) -> Path | None:
     return None
 
 
+_LOCAL_ROOTS = frozenset({"artifacts", "results", "checkpoints", "data", "models", "outputs"})
+_LOCAL_SUFFIXES = (".safetensors", ".bin", ".pt", ".pth", ".json")
+
+
+def is_local_ref(ref: str | Path) -> bool:
+    """Return True when ``ref`` names a filesystem path rather than a Hub repo id.
+
+    Hugging Face repo ids are ``namespace/name`` or a bare ``name``. Project
+    artifacts are written below known roots (``artifacts/``, ``results/``...)
+    and checkpoint files carry a checkpoint suffix, so a missing one is a
+    missing stage artifact, not a repository to download.
+    """
+    text = str(ref).strip()
+    if not text:
+        return False
+    path = Path(text)
+    if path.is_absolute() or text.startswith((".", "~")):
+        return True
+    if text.endswith(_LOCAL_SUFFIXES):
+        return True
+    first = text.replace("\\", "/").split("/", 1)[0]
+    return first in _LOCAL_ROOTS
+
+
+def local_path_or_raise(ref: str | Path, *, context: str = "model") -> Path | None:
+    """Resolve a local reference; fail loudly instead of falling back to the Hub.
+
+    A missing path-like reference such as ``artifacts/drift/.../merged`` used
+    to reach ``AutoTokenizer.from_pretrained``/``snapshot_download`` and surface
+    as ``HFValidationError``. The actionable error is that the producing stage
+    has not run or did not write its checkpoint.
+    """
+    local = local_path(ref)
+    if local is not None:
+        return local
+    if is_local_ref(ref):
+        raise FileNotFoundError(
+            f"{context} {str(ref)!r} looks like a local path but does not exist. "
+            "Run the stage that produces it, or set the reference to a Hugging Face repo id."
+        )
+    return None
+
+
 def has_weights(path: str | Path) -> bool:
     directory = Path(path)
     return any((directory / name).exists() for name in _WEIGHT_PATTERNS)
@@ -86,7 +129,7 @@ def resolve_checkpoint(name: str, cfg: EvalConfig, base: BaseConfig) -> str:
     """Resolve a matrix name to a local path or HF repo id."""
     explicit = cfg.model_paths.get(name)
     if explicit:
-        local = local_path(explicit)
+        local = local_path_or_raise(explicit, context=f"eval.model_paths[{name!r}]")
         return str(local.resolve()) if local is not None else explicit
 
     special: dict[str, str | None] = {
@@ -98,7 +141,7 @@ def resolve_checkpoint(name: str, cfg: EvalConfig, base: BaseConfig) -> str:
         ref = special[name]
         if not ref:
             raise FileNotFoundError(f"models.{name} is not set in the config")
-        local = local_path(ref)
+        local = local_path_or_raise(ref, context=f"models.{name}")
         return str(local.resolve()) if local is not None else ref
 
     searched: list[str] = []
@@ -203,7 +246,7 @@ def load_model_and_tokenizer(
 
     token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
     resolved_device = _resolve_device(device)
-    local = local_path(ref)
+    local = local_path_or_raise(ref, context="model reference")
 
     adapter_config = None
     if local is not None and local.is_dir() and (local / "adapter_config.json").exists():

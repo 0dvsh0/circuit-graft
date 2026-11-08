@@ -12,6 +12,7 @@ from circuitgraft.components import Cohere2Layout
 from circuitgraft.config import BaseConfig, DiscoverConfig, ModelRefs
 from circuitgraft.discover import circuitkit_runner as runner
 from circuitgraft.discover.circuitkit_runner import (
+    _apply_memory_controls,
     build_pairs_task,
     canonical_scores,
     run_circuitkit_discovery,
@@ -76,6 +77,30 @@ def test_canonical_scores_converts_circuitkit_nodes(layout: Cohere2Layout) -> No
         "L0.H0": 1.5,
         "L1.MLP": 0.5,
     }
+
+
+def test_memory_controls_cap_context_and_freeze_non_embeddings() -> None:
+    class FakeParameter:
+        def __init__(self) -> None:
+            self.requires_grad = True
+
+    class FakeModel:
+        def __init__(self) -> None:
+            self.cfg = SimpleNamespace(n_ctx=8192)
+            self.params = {
+                "embed_tokens.weight": FakeParameter(),
+                "layers.0.self_attn.q_proj.weight": FakeParameter(),
+            }
+
+        def named_parameters(self):
+            return self.params.items()
+
+    model = FakeModel()
+    _apply_memory_controls(model, max_seq_len=256)
+
+    assert model.cfg.n_ctx == 256
+    assert model.params["embed_tokens.weight"].requires_grad is True
+    assert model.params["layers.0.self_attn.q_proj.weight"].requires_grad is False
 
 
 def test_run_circuitkit_discovery_writes_artifacts(

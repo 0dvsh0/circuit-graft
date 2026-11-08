@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
+from circuitgraft.config import DataConfig
+from circuitgraft.data.curate import generate_domain_sensitive
 from circuitgraft.data.decontam import (
     decontaminate_by_ngram,
     find_ngram_overlap,
@@ -27,6 +31,28 @@ class WordTokenizer:
 
     def encode(self, text: str, add_special_tokens: bool = True) -> list[int]:
         return list(range(len(text.split())))
+
+
+def test_generate_domain_sensitive_reuses_existing_candidates(tmp_path) -> None:
+    out = tmp_path / "domain_benign"
+    out.mkdir()
+    candidate = {"id": "d1", "prompt": "Is this drug safe?", "label": "benign"}
+    (out / "candidates.jsonl").write_text(
+        json.dumps(candidate) + "\n", encoding="utf-8"
+    )
+
+    result = generate_domain_sensitive(
+        DataConfig(output_dir=str(tmp_path)),
+        out,
+        kind="benign",
+        limit=300,
+    )
+
+    assert result["reused"] is True
+    assert result["rows"] == 1
+    review = (out / "human_review.csv").read_text(encoding="utf-8")
+    assert "review_label" in review
+    assert "d1" in review
 
 
 def valid_pair(**overrides: object) -> dict[str, object]:

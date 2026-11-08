@@ -1338,6 +1338,7 @@ def generate_domain_sensitive(
     kind: str,
     limit: int,
     corpus: str = "medmcqa",
+    reuse_existing: bool = True,
 ) -> dict[str, Any]:
     """Generate candidate domain-sensitive eval rows with CuratorKIT.
 
@@ -1345,14 +1346,42 @@ def generate_domain_sensitive(
     auto`` and a human-review CSV is written next to it. It must not be used as
     a human-verified evaluation set until the review is completed.
     """
-    from curatorkit import Curator, CuratorConfig
-
     if kind not in {"benign", "harmful"}:
         raise ValueError(f"unknown domain-sensitive kind: {kind!r}")
     generator_model = cfg.curate.generator_model
-    _require_generation_key(generator_model)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    candidates_path = out_dir / "candidates.jsonl"
+    review_path = out_dir / "human_review.csv"
+
+    # Reuse a previous generation so a completed human-review CSV can be
+    # applied without sampling a new set of candidates. Delete candidates.jsonl
+    # (and human_review.csv) to force a fresh generation.
+    if reuse_existing and candidates_path.exists():
+        existing = _read_jsonl(candidates_path)
+        if existing:
+            _write_review_csv(review_path, existing, "prompt")
+            logger.info(
+                "reusing %d generated domain-%s candidates at %s",
+                len(existing),
+                kind,
+                candidates_path,
+            )
+            return {
+                "status": "candidates_pending_human_review",
+                "rows": len(existing),
+                "path": str(candidates_path),
+                "review_path": str(review_path),
+                "curatorkit_rejected": None,
+                "curatorkit_dir": str(out_dir / "curatorkit"),
+                "generator_model": generator_model,
+                "judge_model": cfg.curate.judge_model,
+                "reused": True,
+            }
+
+    _require_generation_key(generator_model)
+    from curatorkit import Curator, CuratorConfig
+
     passages = _seed_passages(cfg, limit=max(20, limit // 2), corpus=corpus)
     if not passages:
         raise RuntimeError("no reference passages available for domain generation")
@@ -1421,19 +1450,18 @@ def generate_domain_sensitive(
         if len(rows) >= limit:
             break
 
-    out_path = out_dir / "candidates.jsonl"
-    _write_jsonl(out_path, rows)
-    review_path = out_dir / "human_review.csv"
+    _write_jsonl(candidates_path, rows)
     _write_review_csv(review_path, rows, "prompt")
     return {
         "status": "candidates_pending_human_review",
         "rows": len(rows),
-        "path": str(out_path),
+        "path": str(candidates_path),
         "review_path": str(review_path),
         "curatorkit_rejected": len(result.rejected),
         "curatorkit_dir": str(run_dir),
         "generator_model": generator_model,
         "judge_model": cfg.curate.judge_model,
+        "reused": False,
     }
 
 
