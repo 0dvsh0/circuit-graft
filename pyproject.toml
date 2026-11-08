@@ -53,6 +53,7 @@ dev = [
   "ipykernel>=6.0",
 ]
 report = ["matplotlib>=3.8", "seaborn>=0.13", "plotly>=5.20"]
+space = ["gradio>=5.0"]
 
 [project.scripts]
 cg = "circuitgraft.cli:app"
@@ -74,7 +75,7 @@ filterwarnings = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["src", "tests"]
+src = ["src", "tests", "space"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

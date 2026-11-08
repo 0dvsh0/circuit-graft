@@ -314,9 +314,51 @@ def attack(
     run_attack(cfg, _base(), attack_type=attack_type)
 
 
+@app.command("eval-attacks")
+def eval_attacks_command(
+    config: Path = typer.Option(Path("configs/eval.yaml"), "--config"),
+    attacks_dir: Path = typer.Option(Path("artifacts/attacks"), "--attacks-dir"),
+    output_dir: Path | None = typer.Option(None, "--output-dir"),
+    generations_dir: Path | None = typer.Option(None, "--generations-dir"),
+    overwrite: bool = typer.Option(False, "--overwrite"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+) -> None:
+    """S7 follow-up: evaluate saved S8 checkpoints and attach post-attack HRR."""
+    from circuitgraft.attacks.evaluate import collect_attack_checkpoints, run_attack_eval
+
+    cfg = load_config(config, EvalConfig)
+    if dry_run:
+        checkpoints = collect_attack_checkpoints(attacks_dir)
+        console.print(
+            f"eval-attacks: dry run ({len(checkpoints)} saved checkpoint(s))"
+        )
+        for checkpoint in checkpoints:
+            console.print(f"- {checkpoint.label}: {checkpoint.checkpoint}")
+        return
+    summary = run_attack_eval(
+        cfg,
+        _base(),
+        attacks_root=attacks_dir,
+        output_dir=output_dir,
+        generations_dir=generations_dir,
+        overwrite=overwrite,
+    )
+    console.print(
+        f"eval-attacks ({summary['status']}) -> {summary.get('output_dir', '—')} "
+        f"[{len(summary.get('checkpoints', []))} checkpoint(s)]"
+    )
+    if summary["status"] == "not_evaluated":
+        console.print(summary.get("reason", ""))
+
+
 @app.command()
 def report(
     dry_run: bool = typer.Option(False, "--dry-run"),
+    output_dir: Path | None = typer.Option(None, "--output-dir"),
+    readme: Path | None = typer.Option(None, "--readme", help="Markdown file to inject."),
+    results_out: Path | None = typer.Option(
+        None, "--results-out", help="Tracked copy directory for tables and plots."
+    ),
 ) -> None:
     """S9: build tables/plots and inject them into README/Article."""
     from circuitgraft.report.pipeline import run_report
@@ -324,12 +366,21 @@ def report(
     if dry_run:
         console.print("[green]report: dry run[/green]")
         return
-    run_report()
+    summary = run_report(
+        output_dir=output_dir,
+        readme_path=readme,
+        results_out=results_out,
+    )
+    console.print(
+        f"report ({summary['status']}) -> {summary['results_dir']} "
+        f"[{len(summary['partial_reasons'])} partial reasons]"
+    )
 
 
 @app.command()
 def publish(
     dry_run: bool = typer.Option(False, "--dry-run"),
+    output_dir: Path | None = typer.Option(None, "--output-dir"),
 ) -> None:
     """S10: publish models/datasets/collections to the HF namespace."""
     from circuitgraft.publish import run_publish
@@ -337,10 +388,16 @@ def publish(
     base = _base()
     if not base.hf_org:
         raise typer.BadParameter("HF_ORG is empty; set it in .env or the environment")
-    if dry_run:
-        console.print(f"publish: would push to [cyan]{base.hf_org}[/cyan] (dry run)")
-        return
-    run_publish(base)
+    summary = run_publish(base, dry_run=dry_run, output_dir=output_dir)
+    mode = "dry run" if dry_run else "published"
+    console.print(
+        f"publish ({mode}) -> [cyan]{base.hf_org}[/cyan]: "
+        f"{len(summary['models_published'])} models, "
+        f"{len(summary['datasets_published'])} datasets, "
+        f"{len(summary['skipped'])} skipped"
+    )
+    if summary["skipped"]:
+        console.print_json(json.dumps(summary["skipped"], indent=2))
 
 
 if __name__ == "__main__":

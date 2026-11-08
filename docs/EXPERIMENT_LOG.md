@@ -576,12 +576,193 @@ python scripts/d1_smoke.py --device cuda --output-dir results/d1/smoke
 `results/d1/smoke/circuitkit.json`, `results/d1/smoke/auditkit.json`,
 `results/d1/smoke/curatorkit.json`.
 
+## 2026-11-08 - S9/S10 real-artifact integration and `run_all.sh`
+
+**Goal:** make the post-experiment stages consume the files the earlier stages
+actually write, and add the missing end-to-end runner required by G6.
+
+**S9 reporting changes:**
+
+- `report/tables.py`: normalise the real S7 summary shape
+  (`{"models": {name: {"composite": ..., "judged": {"safety", "mcq", "benign"}}}}`)
+  into one table row per model; accept both flat judge documents and the older
+  nested `metrics` wrapper; read edit footprints from `graft_stats.json` and
+  `baseline_stats.json`.
+- `report/pipeline.py`: discover the newest complete/partial
+  `artifacts/eval/eval-*`, `artifacts/discover/discover-*` and
+  `artifacts/attacks/*/*/attack_stats.json`; ignore failed manifests; attach
+  clean HRR from the eval summary to attack rows; copy tables and plots into
+  `results/s9/<run_id>/`; point README image links at the tracked plot copies
+  because `artifacts/` is git-ignored; add a `repo_root` injection point for
+  hermetic tests.
+- `report/inject_readme.py`: replace via a function so Windows paths containing
+  `\U` are not interpreted as regex replacement escapes.
+- CLI: `cg report --output-dir/--readme/--results-out`.
+
+**S10 publishing changes:**
+
+- `publish.py`: resolve actual drift (`*/merged`), LoRA (`*/adapter`), graft
+  (`<name>-*/model.safetensors`), baseline (`*/merged`) and abliteration
+  (`attacks/abliterate/*/merged`) checkpoints instead of fixed paths.
+- Dataset staging uses allow-lists, so the safety-pairs and domain-pairs repos
+  receive only their own files from the shared `artifacts/data/pairs` folder;
+  eval logs exclude `results/generations`.
+- CLI: `cg publish --output-dir`; dry runs now execute the full resolution and
+  staging path and report published/skipped counts.
+
+**Runner:** `scripts/run_all.sh` implements:
+
+- `--check`: doctor, every `configs/**/*.yaml`, pytest, ruff.
+- `--smoke`: CPU D1 proxy smoke, S1 smoke data, S9 into a scratch README, S10
+  dry run under `artifacts/run_all_smoke/`.
+- `--full`: CUDA gate, doctor `--check-models`, config check, then
+  data -> drift -> audit -> discover -> baselines -> graft -> eval -> attacks ->
+  report -> publish; supports `--no-publish`, `--no-attacks`,
+  `--sweep-baselines`, `--device` and `--dry-run`.
+
+**Verification (local, CPU-only):**
+
+- `pytest -q`: `170 passed`, 1 upstream TransformerLens deprecation warning;
+  `ruff check src tests scripts`: clean.
+- `bash scripts/run_all.sh --check`: `check: ok` (21 configs validated).
+- `cg publish --dry-run` against the current tree: 0 models, 1 dataset
+  (`eval-logs`), 19 skipped. The skips are the expected missing Phase 4
+  checkpoints/data; this is not S10 evidence.
+- A temporary S9 run against `artifacts/eval_smoke` reported `partial` with
+  reasons `no S4 discovery overlap report` and `no S8 attack statistics`. It
+  wrote only to a temporary directory, so the public README markers were not
+  changed and the smoke values were not presented as G4 evidence.
+
+**Artifacts:** `scripts/run_all.sh`, updated S9/S10 modules and tests,
+`CONTEXT.md`.
+
+## 2026-11-08 - Space loaders, article scaffold, and lint coverage
+
+**Goal:** finish the human-facing deliverables that can be completed without a
+GPU, without inventing Phase 4 numbers.
+
+**Space (`space/app.py`):**
+
+- Read-only Gradio demo over the newest tracked `results/s9/report-*` bundle.
+  It renders the main/overlap/attack tables and plots, and shows setup
+  instructions when no bundle exists.
+- Optional Compare tab reads `space/cached_responses.json`; it never generates
+  live text and explicitly excludes harmful completions.
+- Bundle discovery checks `CIRCUITGRAFT_REPORT_DIR`,
+  `CIRCUITGRAFT_RESULTS_DIR`, then `results/s9/` beside the app and in its
+  parent. The newest bundle is chosen by manifest `finished_at`, then mtime.
+- Gradio is imported lazily in `build_app()`, so loader tests run without the UI
+  dependency. `pyproject.toml` now exposes a `space` extra
+  (`gradio>=5.0`).
+- `tests/test_space_app.py` covers latest-bundle discovery, table/plot
+  fallbacks, invalid/missing manifests, environment override, cached-response
+  loading, prompt/model helpers and partial-status rendering.
+
+**Article:**
+
+- `docs/ARTICLE.md` follows the 11-section outline in `SPEC.md` §16.2 and uses
+  explicit `ARTICLE:` placeholders for every metric-bearing block and artifact
+  link. It records the S8 post-attack caveat and the S9 completeness rule
+  instead of pre-filling values.
+
+**Tooling:**
+
+- Ruff now covers `space/` as well (`src tests scripts space`), and
+  `scripts/run_all.sh --check` uses the same scope.
+
+**Verification (local, CPU-only):**
+
+- `pytest -q`: `183 passed`, 1 upstream TransformerLens deprecation warning.
+- `ruff check src tests scripts space`: clean.
+- `bash scripts/run_all.sh --check`: `check: ok` (doctor, 21 configs, tests,
+  lint).
+- Gradio is not installed in the local environment; only the lazy loader helpers
+  were tested. `build_app()` itself remains unexercised until the Space is
+  deployed.
+
+**Artifacts:** `space/app.py`, `space/README.md`, `space/requirements.txt`,
+`tests/test_space_app.py`, `docs/ARTICLE.md`, `pyproject.toml`,
+`scripts/run_all.sh`, `CONTEXT.md`.
+
+## 2026-11-08 - S8 -> S7 attack checkpoint evaluation bridge
+
+**Goal:** close the missing robustness path. S8 saves attacked checkpoints but
+cannot measure HRR; S9 previously had to print `-` for every post-attack cell.
+The bridge re-evaluates those checkpoints through the normal S7 pipeline and
+passes measured metrics to S9.
+
+**Implementation:**
+
+- `src/circuitgraft/attacks/evaluate.py` discovers complete/partial S8 runs and
+  resolves saved checkpoints: abliteration `output.merged` and every harmful-FT
+  `checkpoints.<step>`. Blocked runs, runtime-only abliteration and
+  quantization plans are skipped explicitly.
+- Eval names are deterministic and filesystem-safe
+  (`attack__<type>__<model>[__mode][__step_<n>][__backend]`); duplicate names get
+  a numeric suffix. Every checkpoint is passed to S7 through `model_paths`, with
+  isolated `artifacts/attacks/eval/` and `results/generations_attacks/`
+  directories.
+- The bridge writes `post_eval.json` beside each `attack_stats.json`
+  (`metrics` for single-checkpoint attacks, `metrics_by_step` for harmful-FT),
+  plus aggregate `artifacts/attacks/eval/summary.json` and a manifest.
+- S9 now reads `post_eval.json` and merges measured HRR into
+  `abliteration_hrr`, `harmful_ft` step rows and the quantization columns, and
+  records each source under `attack_post_eval`.
+- CLI: `cg eval-attacks [--config] [--attacks-dir] [--output-dir]
+  [--generations-dir] [--overwrite] [--dry-run]`.
+- `scripts/run_all.sh --full` now runs `attack -> eval-attacks -> report`;
+  `--no-attack-eval` skips the bridge and the summary prints the
+  `artifacts/attacks/eval/summary.json` path.
+
+**Verification (local, CPU-only):**
+
+- `pytest -q`: `187 passed`, 1 upstream TransformerLens deprecation warning.
+- `ruff check src tests scripts space`: clean.
+- `bash scripts/run_all.sh --check`: `check: ok`.
+- `bash scripts/run_all.sh --full --dry-run`: prints the expected sequence
+  including `eval-attacks`, `report` and `publish`.
+- No attack checkpoint existed locally, so the bridge itself was exercised with
+  injected checkpoint trees and a fake S7 runner in `tests/test_attack_eval.py`;
+  the real post-attack numbers await the GPU run.
+
+**Limitations:** quantization still writes only a plan, so no quantized
+checkpoint exists to evaluate; runtime abliteration likewise has no saved model.
+Those cells remain `-` until the attack stages save real checkpoints.
+
+**Artifacts:** `src/circuitgraft/attacks/evaluate.py`,
+`tests/test_attack_eval.py`, `src/circuitgraft/report/pipeline.py`,
+`tests/test_report.py`, `src/circuitgraft/cli.py`, `scripts/run_all.sh`.
+
+## 2026-11-08 - Phase 4 Colab runner and pre-registration freeze
+
+**Goal:** freeze pre-registration before Phase 4, package the Google Drive-persisted
+Colab notebook, and prepare the Git tree for remote execution on Tesla T4.
+
+**Implementation:**
+
+- `docs/PREREGISTRATION.md`: status transitioned from DRAFT to FROZEN.
+  Checklist verified (Gate G0 passed on T4, API notes reconciled, clean tree).
+- `scripts/build_phase4_notebook.py`: programmatic generator for
+  `notebooks/run_phase4_colab.ipynb`.
+- `notebooks/run_phase4_colab.ipynb`: 10-stage resumable runner featuring Google Drive
+  real-time artifact persistence (`circuit_graft_phase4/`), 10 GB disk swapfile,
+  15-minute quick calibration pass, and staged execution of S1 through S10.
+
+**Verification (local, CPU-only):**
+
+- `pytest -q`: `187 passed`, 1 upstream TransformerLens deprecation warning.
+- `ruff check src tests scripts space`: clean.
+- `python scripts/build_phase4_notebook.py`: verified JSON format and cell structure.
+
+**Artifacts:** `notebooks/run_phase4_colab.ipynb`, `scripts/build_phase4_notebook.py`,
+`docs/PREREGISTRATION.md`.
+
 ## Open items
 
 1. Run `cg data` with unblocked benchmarks and active Cohere API key, complete 10%
    human-review contrastive pairs CSV, and claim G1.
 2. Review and freeze `docs/PREREGISTRATION.md` (transition DRAFT -> frozen) before Phase 4.
-3. Execute Phase 4 experiments on remote GPU:
+3. Execute Phase 4 experiments on remote GPU (or `bash scripts/run_all.sh --full`):
    - S2: Train drifted specialist $\theta_D$ (`cg drift`).
    - S3: S3 Audit of $\theta_A$ vs $\theta_D$ (confirming H0 safety degradation).
    - S4: Discovery of safety circuit $S$ and domain circuit $D$ with CircuitKIT & SafeTune EAP cross-check (`cg discover`).
@@ -589,5 +770,14 @@ python scripts/d1_smoke.py --device cuda --output-dir results/d1/smoke
    - S6: CircuitGraft variants (`cg_project`, `cg_uniform`, `cg_exclude`, `cg_fisher`).
    - S7: Full evaluation matrix (`cg eval`).
    - S8: Adversarial attacks (`cg attack`).
+   - S8->S7: Evaluate saved attack checkpoints (`cg eval-attacks`).
    - S9: Generate report tables, plots, and inject README metrics (`cg report`).
    - S10: Publish models & datasets to HuggingFace under `dubeydevansh` (`cg publish`).
+4. After a complete S9 bundle exists, copy it into the Space repository, add
+   curated `space/cached_responses.json` once checkpoints are public, and deploy
+   `space/app.py`. Fill `docs/ARTICLE.md` from `results/s9/<run_id>/` and replace
+   every artifact placeholder after S10.
+5. Run `cg eval-attacks` after `cg attack` so `table_attacks.md` and
+   `attack_decay.png` carry measured post-attack HRR. `run_all.sh --full`
+   already does this; quantization stays unavailable until a real quantized
+   checkpoint is saved.

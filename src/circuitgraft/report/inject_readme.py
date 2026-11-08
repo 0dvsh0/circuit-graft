@@ -39,7 +39,9 @@ def inject_section(content: str, section_key: str, new_text: str) -> tuple[str, 
 
     replacement = f"{start_tag}\n\n{new_text.strip()}\n\n{end_tag}"
     if pattern.search(content):
-        return pattern.sub(replacement, content), True
+        # A function replacement keeps backslashes in paths/tables literal;
+        # ``re.sub`` would otherwise interpret sequences such as ``\U``.
+        return pattern.sub(lambda _match: replacement, content), True
     return content, False
 
 

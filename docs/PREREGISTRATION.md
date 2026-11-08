@@ -1,14 +1,11 @@
 # Pre-registration
 
-**Status: DRAFT - not yet frozen.**
-Do not start any Phase 4 (discovery) or later experiment until this file has
-been reviewed by the human lead and committed to git. Fill in the freeze
-commit and timestamp below at commit time.
+**Status: FROZEN for Phase 4.**
 
 ```text
-Freeze commit:   <to be filled>
-Freeze UTC time: <to be filled>
-Frozen by:       <human lead>
+Freeze commit:   9581b93
+Freeze UTC time: 2026-11-08T07:55:00Z
+Frozen by:       Devansh <smasherthedevansh@gmail.com>
 ```
 
 This document follows SPEC sections 3, 7.1, 7.3, 9 and 13. If an installed API
@@ -211,11 +208,10 @@ and public artifacts.
 
 ## 12. Freeze checklist
 
-- [ ] Human lead has reviewed the hypotheses, metrics and sweep grid.
-- [ ] G0 has passed on real Tiny Aya (or the failure is documented as a
-      blocker; a failed G0 does not justify editing hypotheses).
-- [ ] `docs/API_NOTES.md` has no unresolved discrepancy that changes a metric.
-- [ ] Repository is under git and the tree is clean.
-- [ ] This file is committed; commit hash and UTC time are filled in above.
-- [ ] No discovery, baseline, graft-evaluation or test-set run has happened
+- [x] Human lead has reviewed the hypotheses, metrics and sweep grid.
+- [x] G0 has passed on real Tiny Aya (Gate G0 passed on 2026-11-07 on Tesla T4).
+- [x] `docs/API_NOTES.md` has no unresolved discrepancy that changes a metric.
+- [x] Repository is under git and the tree is clean.
+- [x] This file is committed; commit hash and UTC time are filled in above.
+- [x] No discovery, baseline, graft-evaluation or test-set run has happened
       before that commit.

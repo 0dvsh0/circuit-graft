@@ -36,12 +36,12 @@ def plot_pareto_frontier(
 
     import matplotlib.pyplot as plt
 
+    from circuitgraft.report.tables import normalise_eval_rows
+
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    rows = eval_matrix if isinstance(eval_matrix, list) else eval_matrix.get("models", [])
-    if not rows and isinstance(eval_matrix, dict):
-        rows = [{"model": k, **v} for k, v in eval_matrix.items() if isinstance(v, dict)]
+    rows = normalise_eval_rows(eval_matrix)
 
     fig, ax = plt.subplots(figsize=(8, 6), dpi=300)
 
