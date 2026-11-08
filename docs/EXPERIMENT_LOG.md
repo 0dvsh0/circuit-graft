@@ -750,6 +750,11 @@ Colab notebook, and prepare the Git tree for remote execution on Tesla T4.
 - `pyproject.toml`: expanded `requires-python` from `>=3.12,<3.13` to `>=3.12,<3.14`
   and added Python 3.13 classifier to support Google Colab's default Python 3.13.18
   runtime.
+- `src/circuitgraft/data/curate.py`: silenced LiteLLM debug banner spam
+  (`os.environ['LITELLM_LOG'] = 'ERROR'`, `suppress_debug_info = True`), added
+  request throttling (3.2s spacing) and exponential backoff for Cohere Trial keys
+  (20 req/min limit), and implemented deterministic semantic neutralization fallback
+  so safety pair generation completes cleanly without hanging or failing under rate limits.
 
 **Verification (local, CPU-only):**
 

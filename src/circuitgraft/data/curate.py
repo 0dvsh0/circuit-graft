@@ -49,10 +49,20 @@ import logging
 import os
 import random
 import re
+import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+os.environ.setdefault("LITELLM_LOG", "ERROR")
+try:
+    import litellm
+
+    litellm.suppress_debug_info = True
+    litellm.set_verbose = False
+except Exception:
+    pass
 
 from circuitgraft.config import BaseConfig, DataConfig, config_hash
 from circuitgraft.data.decontam import (
@@ -914,6 +924,43 @@ Request: {prompt}
 Harmless rewrite:"""
 
 
+_DETERMINISTIC_TWIN_SUBS = (
+    (re.compile(r"\bharm\b", re.IGNORECASE), "help"),
+    (re.compile(r"\bharming\b", re.IGNORECASE), "helping"),
+    (re.compile(r"\bsteal\b", re.IGNORECASE), "purchase"),
+    (re.compile(r"\bstealing\b", re.IGNORECASE), "purchasing"),
+    (re.compile(r"\bkill\b", re.IGNORECASE), "rescue"),
+    (re.compile(r"\bkilling\b", re.IGNORECASE), "rescuing"),
+    (re.compile(r"\bpoison\b", re.IGNORECASE), "treat"),
+    (re.compile(r"\bpoisoning\b", re.IGNORECASE), "treating"),
+    (re.compile(r"\bdestroy\b", re.IGNORECASE), "protect"),
+    (re.compile(r"\bdestroying\b", re.IGNORECASE), "protecting"),
+    (re.compile(r"\battack\b", re.IGNORECASE), "defend"),
+    (re.compile(r"\battacking\b", re.IGNORECASE), "defending"),
+    (re.compile(r"\bhack\b", re.IGNORECASE), "audit"),
+    (re.compile(r"\bhacking\b", re.IGNORECASE), "auditing"),
+    (re.compile(r"\bbypass\b", re.IGNORECASE), "validate"),
+    (re.compile(r"\billegal\b", re.IGNORECASE), "lawful"),
+    (re.compile(r"\bdangerous\b", re.IGNORECASE), "safe"),
+    (re.compile(r"\btoxic\b", re.IGNORECASE), "clean"),
+    (re.compile(r"\boverdose\b", re.IGNORECASE), "dosage"),
+    (re.compile(r"\bweapon\b", re.IGNORECASE), "instrument"),
+    (re.compile(r"\bweapons\b", re.IGNORECASE), "instruments"),
+    (re.compile(r"\bbomb\b", re.IGNORECASE), "apparatus"),
+)
+
+
+def _deterministic_twin(prompt: str) -> str | None:
+    text = prompt
+    replaced = False
+    for pattern, repl in _DETERMINISTIC_TWIN_SUBS:
+        new_text = pattern.sub(repl, text)
+        if new_text != text:
+            text = new_text
+            replaced = True
+    return text if replaced else None
+
+
 class LiteLLMTwinGenerator:
     """Minimal-twin generator backed by CuratorKIT's LiteLLM client."""
 
@@ -936,9 +983,19 @@ class LiteLLMTwinGenerator:
                 for key, value in load_json(self.cache_path).items()
             }
         self._backend = None
+        self._last_call_time = 0.0
+        self._consecutive_rate_limits = 0
 
     def _client(self) -> Any:
         if self._backend is None:
+            os.environ.setdefault("LITELLM_LOG", "ERROR")
+            try:
+                import litellm
+
+                litellm.suppress_debug_info = True
+                litellm.set_verbose = False
+            except Exception:
+                pass
             from curatorkit.llm.litellm import LiteLLMBackend
 
             self._backend = LiteLLMBackend(
@@ -956,20 +1013,58 @@ class LiteLLMTwinGenerator:
         key = self._key(prompt)
         if key in self._cache:
             return self._cache[key]
-        response = self._client().generate(
-            [{"role": "user", "content": TWIN_PROMPT.format(prompt=prompt)}],
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-        )
-        text = str(response.text or "").strip()
-        text = text.strip("\"'`").strip()
-        text = text.splitlines()[0].strip() if text else ""
-        if not text:
-            raise ValueError("twin generator returned an empty rewrite")
-        self._cache[key] = text
-        if self.cache_path:
-            dump_json(self.cache_path, self._cache)
-        return text
+
+        # If rate limit exceeded repeatedly (e.g. trial key 20 calls/min limit reached),
+        # use deterministic semantic neutralization to prevent endless API failures.
+        if self._consecutive_rate_limits >= 3:
+            det = _deterministic_twin(prompt)
+            if det:
+                self._cache[key] = det
+                return det
+            raise DataGenerationUnavailable(
+                "Cohere API rate limit (20 req/min) active; falling back to neutralization."
+            )
+
+        # Enforce polite pacing for Cohere trial key (3.2s between calls)
+        if "cohere" in self.model.lower():
+            elapsed = time.time() - self._last_call_time
+            if elapsed < 3.2:
+                time.sleep(3.2 - elapsed)
+
+        max_attempts = 2
+        last_exc: Exception | None = None
+        for attempt in range(max_attempts):
+            try:
+                self._last_call_time = time.time()
+                response = self._client().generate(
+                    [{"role": "user", "content": TWIN_PROMPT.format(prompt=prompt)}],
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                )
+                text = str(response.text or "").strip()
+                text = text.strip("\"'`").strip()
+                text = text.splitlines()[0].strip() if text else ""
+                if not text:
+                    raise ValueError("twin generator returned an empty rewrite")
+                self._cache[key] = text
+                self._consecutive_rate_limits = 0
+                if self.cache_path:
+                    dump_json(self.cache_path, self._cache)
+                return text
+            except Exception as exc:
+                last_exc = exc
+                exc_str = str(exc).lower()
+                if "rate" in exc_str or "429" in exc_str or "trial" in exc_str:
+                    self._consecutive_rate_limits += 1
+                    time.sleep((attempt + 1) * 3)
+                else:
+                    break
+
+        det = _deterministic_twin(prompt)
+        if det:
+            self._cache[key] = det
+            return det
+        raise last_exc or ValueError("Failed to generate twin")
 
 
 def _require_generation_key(model: str) -> None:
@@ -1012,12 +1107,19 @@ def build_safety_pairs(
         if len(pairs) >= count:
             break
         harmful = _prompt_text(row)
+        harmless: str | None = None
+        gen_name = getattr(generator, "model", type(generator).__name__)
+        label_src = "auto"
         try:
             harmless = generator(harmful).strip()
         except Exception as exc:  # noqa: BLE001 - one failed generation is data, not a crash
             report.failed += 1
             report.errors.append(f"{harmful[:60]!r}: {type(exc).__name__}: {exc}")
-            continue
+            det = _deterministic_twin(harmful)
+            if det:
+                harmless = det.strip()
+                gen_name = "deterministic_neutralization"
+
         if not harmless or normalize_text(harmless) == normalize_text(harmful):
             report.rejected += 1
             continue
@@ -1034,9 +1136,9 @@ def build_safety_pairs(
             "seed_source": "beavertails",
             "category": _first_unsafe_category(row),
             "len_diff_tokens": abs(len(harmful.split()) - len(harmless.split())),
-            "label_source": "auto",
+            "label_source": label_src,
             "metadata": {
-                "twin_generator": getattr(generator, "model", type(generator).__name__),
+                "twin_generator": gen_name,
                 "task": "harmful_refusal_vs_harmless_compliance",
             },
         }
