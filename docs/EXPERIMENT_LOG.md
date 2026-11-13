@@ -1025,3 +1025,39 @@ and the probe mirrors the same recipe.
   for both safety and domain).
   Prereg deviation added for S4 dtype + seq\_len reduction.
 
+
+## 2026-11-13 - S2 drift training launched
+
+**Goal:** run the LoRA SFT drift on the aligned model (scenario A, seed 0).
+
+**Three ROCm/Windows compatibility fixes applied before successful launch:**
+
+1. **TRL 1.14.2 `SFTConfig` API change:** `warmup_ratio` (float) replaced by
+   `warmup_steps` (int). `build_training_args` now accepts
+   `num_train_samples` and converts `warmup_ratio=0.03` to
+   `warmup_steps=max(1, int(0.03 * total_steps))` = 9 steps for 314 total
+   optimizer steps. Test monkeypatches updated to accept `**kw`.
+
+2. **TRL `SFTTrainer` import fails:** `torch._C._distributed_c10d` is not in
+   the ROCm Windows build; TRL's SFTTrainer imports `torch.distributed.tensor`
+   transitively. Replaced `SFTTrainer` with `transformers.Trainer` (the
+   dataset is pre-tokenized with `skip_prepare_dataset=True` and a custom
+   `PaddingCollator`, so SFTTrainer adds nothing over the base Trainer;
+   `SFTConfig` is a `TrainingArguments` subclass so it works unchanged).
+
+3. **`transformers` + `accelerate` DTensor checks:** both
+   `trainer_optimizer.has_mixed_dtensor` and
+   `accelerate.utils.other.model_has_dtensor` import
+   `torch.distributed.tensor.DTensor` unconditionally during
+   `create_optimizer` and `accelerator.prepare_model`. Stubbed
+   `sys.modules["torch.distributed.tensor"]` with a fake `DTensor` class so
+   `isinstance(param, DTensor)` returns `False` (model has plain tensors,
+   never DTensors on this single-GPU stack).
+
+**Launch:** `.\.venv\Scripts\cg.exe drift --config configs/drift.yaml`
+(terminal 6, PID 16336). Model loaded 290 shards in ~23 s; tokenizer
+aligned (eos\_token\_id updated to 6); training started at ~20:09 UTC.
+314 optimizer steps (5000 rows / 32 effective batch × 2 epochs) × 32
+micro-steps × ~4.74 s ≈ 13.2 h; first log at step 10 (~25 min in). SDPA
+attention warning (no memory-efficient kernels on gfx1032) — expected.
+Git tree clean at commit `8d1c27f` before launch.
