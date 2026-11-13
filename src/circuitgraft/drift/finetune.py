@@ -883,6 +883,15 @@ def run_drift(
     trainable = _trainable_parameters(lora_model)
     args = build_training_args(cfg, out_dir, device, num_train_samples=len(dataset))
     collator = PaddingCollator(int(pad_id))
+    # ROCm Windows build lacks torch._C._distributed_c10d; transformers
+    # Trainer's create_optimizer calls has_mixed_dtensor which imports
+    # torch.distributed.tensor.DTensor unconditionally (even single-GPU).
+    # Patch to False since we never use DTensors on this stack.
+    try:
+        from transformers import trainer_optimizer
+        trainer_optimizer.has_mixed_dtensor = lambda *a, **kw: False
+    except (ImportError, AttributeError):
+        pass
     factory = trainer_factory or _default_trainer_factory
     logger.info("starting LoRA drift training (%s)", device)
     trainer = factory(lora_model, args, dataset, collator, tokenizer)
