@@ -542,9 +542,16 @@ def _default_trainer_factory(
     data_collator: Any,
     processing_class: Any,
 ) -> Any:
-    from trl import SFTTrainer
+    # Use transformers.Trainer directly: the ROCm Windows build lacks
+    # torch._C._distributed_c10d, which TRL's SFTTrainer imports
+    # transitively (torch.distributed.tensor -> distributed_c10d). Since
+    # the dataset is pre-tokenized (dataset_kwargs={"skip_prepare_dataset":
+    # True}) and we use a custom collator, SFTTrainer adds nothing over the
+    # base Trainer. SFTConfig is a TrainingArguments subclass so it works
+    # with the base Trainer unchanged.
+    from transformers import Trainer
 
-    return SFTTrainer(
+    return Trainer(
         model=model,
         args=args,
         train_dataset=train_dataset,
