@@ -1,5 +1,13 @@
 output_dir: artifacts/discover
 
+# 2026-11-13: bf16 matmul on gfx1032 is emulated as fp32 intermediates,
+# doubling activation memory (probe OOM 13.58 GB vs 7.98 GB VRAM at seq 256,
+# results/s2_s4_precheck.json). float16 uses native matmul (no fp32 upcast).
+# max_seq_len 256 → 96: safety pairs max 81 tokens, domain pairs max 206 but
+# median 48, p90 75; only 13/256 domain pairs truncated (logged as prereg
+# deviation). _apply_memory_controls n_ctx floor lowered 128 → 48.
+dtype: float16
+
 safety:
   pairs: artifacts/data/pairs/safety.jsonl
   model: aligned          # circuit on theta_A; also run on drifted for diagnosis
@@ -10,9 +18,11 @@ safety:
   n_examples: 256
   sparsity: 0.3
   # Pairs are rendered without the ~366-token system preamble
-  # (configs/data.yaml: pairs.include_system_preamble=false), so 256 tokens
-  # is ample. Keep this small: CircuitKIT sizes activation caches from it.
-  max_seq_len: 256
+  # (configs/data.yaml: pairs.include_system_preamble=false), so 96 tokens
+  # is ample (safety max 81; domain median 48, max 206, only 13/256 > 96).
+  # CircuitKIT sizes activation caches from max_seq_len; 256 OOM'd at 13.58 GB
+  # (bf16 emulation doubles activation memory).
+  max_seq_len: 96
   batch_size: 1            # T4-safe; scale activations ~batch x seq
   metric: logit_diff
   # Filled empirically on D4 by scripts/choose_tokens.py; empty = discover.
@@ -28,7 +38,7 @@ domain:
   ig_steps: 5
   n_examples: 256
   sparsity: 0.3
-  max_seq_len: 256         # same rendering as the safety pairs
+  max_seq_len: 96          # same rendering as the safety pairs (domain median 48, max 206)
   batch_size: 1            # T4-safe
   metric: logit_diff
 

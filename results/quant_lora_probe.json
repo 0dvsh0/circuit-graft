@@ -1,0 +1,66 @@
+[
+  {
+    "shape": "nf4_ckpt_b2_s512",
+    "step_s": 78.27,
+    "peak_gb": 8.05,
+    "batch": 2,
+    "seq": 512,
+    "checkpointing": true,
+    "autocast": "none",
+    "merge": "ok"
+  },
+  {
+    "shape": "nf4_nockpt_b1_s512",
+    "step_s": 15.99,
+    "peak_gb": 11.29,
+    "batch": 1,
+    "seq": 512,
+    "checkpointing": false,
+    "autocast": "none"
+  },
+  {
+    "shape": "nf4_ckpt_b1_s512",
+    "step_s": 4.74,
+    "peak_gb": 5.9,
+    "batch": 1,
+    "seq": 512,
+    "checkpointing": true,
+    "autocast": "none"
+  },
+  {
+    "shape": "nf4_ckpt_b1_s512_autocast_bf16",
+    "step_s": 35.1,
+    "peak_gb": 6.65,
+    "batch": 1,
+    "seq": 512,
+    "checkpointing": true,
+    "autocast": "torch.bfloat16"
+  },
+  {
+    "shape": "nf4_ckpt_b1_s512_autocast_fp16",
+    "step_s": 70.83,
+    "peak_gb": 6.65,
+    "batch": 1,
+    "seq": 512,
+    "checkpointing": true,
+    "autocast": "torch.float16"
+  },
+  {
+    "shape": "nf4_fp16_lora_fp16_scaler_b1_s512",
+    "step_s": 3.71,
+    "peak_gb": 5.9,
+    "batch": 1,
+    "seq": 512,
+    "checkpointing": true,
+    "autocast": "none"
+  },
+  {
+    "shape": "nf4_fp16_lora_fp16_noscaler_b1_s512",
+    "step_s": 3.7,
+    "peak_gb": 5.9,
+    "batch": 1,
+    "seq": 512,
+    "checkpointing": true,
+    "autocast": "none"
+  }
+]

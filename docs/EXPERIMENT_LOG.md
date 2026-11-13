@@ -862,3 +862,166 @@ exercise the intended branch explicitly (test-only change; no pipeline
 change). Tooling note: PowerShell 5.1 `2>&1` merge reports spurious exit 1
 for native stderr — use separated redirection to read true exit codes.
 
+**2026-11-13 16:50 (S1 data complete; HarmBench selection resplit):**
+`cg data --config configs/data.yaml` finished at 10:59:27Z (started 10:43:41Z,
+945.7 s wall), manifest `artifacts/data/manifest.json`: run_id
+`data-bc99df1d4f173b72`, git 4cbfb8d (clean), device cuda (AMD Radeon RX 6600),
+status complete. Cohere Aya-Expanse-32B generation ran both QA tasks (300
+benign + 150 harmful rows at ~1.03 rows/s); outputs: SFT 5000 train / 1000
+val rows, safety+domain pairs 256+256, decontam removed only MedMCQA/MedQA/
+MMLU overlaps (13-gram), test split 4,940 rows across 12 benchmarks, selection
+split 350 rows. The "exit code 1" seen at launch was the PowerShell `2>&1`
+stderr-merge artifact (only stderr content: the harmless bitsandbytes
+`rocminfo` warning) — the manifest status is authoritative.
+
+The stage manifest `notes` said `partial_ok` because the selection split had
+`harmbench.jsonl` empty: HarmBench's standard-behaviour pool is exactly 200
+rows and the config requested 200 test rows, so `_split_indices` handed the
+whole seeded shuffle to the test split (prereg-approved selection size was
+60). Fix applied BEFORE any test-split run, as a logged preregistration
+deviation: `scripts/resplit_harmbench_selection.py` carved the split from the
+finished file — test keeps the preregistered 150-row cap
+(`configs/eval.yaml max_rows.harmbench`), the remaining 50 rows become
+`artifacts/data/selection/harmbench.jsonl`. Byte-identity to a fresh
+corrected-config run was proven at run time: the replayed
+`load_safetune_rows("load_harmbench")` → `_as_rows` → `safety_to_eval` → dedup
+→ standard-subset path yields exactly 200 rows and
+`random.Random("0:harmbench").shuffle(pool)` reproduces the file order
+exactly, so first-150/last-50 equals the fresh-run `shuffled[:150]` /
+`shuffled[150:]` split. Lines moved verbatim (canonical `_write_jsonl` form
+asserted); `summary.json` + `manifest.json` re-hashed (3 entries) with the
+resplit noted. Updated `configs/data.yaml` (harmbench 150,
+selection_harmbench 50), `configs/eval.yaml` (selection_harmbench 50) and
+`configs/eval_selection.yaml` (max_rows.selection_harmbench 50, comment
+50/60/120). Final split sizes: test 4,940 rows; selection 50 / 100 / 200.
+Also deleted the two orphaned `.incomplete` blobs (4.25 GB) from
+`models--CohereLabs--tiny-aya-base/blobs` — the base snapshot is complete
+(both shards verified against `model.safetensors.index.json` total_size).
+
+**2026-11-13 17:15 (GPU bench: dtype verdict + LoRA VRAM findings):**
+`scripts/gpu_bench.py` on the RX 6600 (full numbers in
+`results/gpu_bench.json`): fp16 matmul 13.07 TFLOPS vs bf16 3.51 TFLOPS —
+**bf16 matmul is emulated on gfx1032** (3.7x gap); eval-style generation
+(batch 8) 48.8 tok/s MCQ-32 / 66.9 tok/s safety-256 in fp16 vs 21.5 / 14.9 in
+bf16 (2-4.5x). Verdict: `float16` for the eval/generation stages — logged as a
+preregistration deviation (hardware reason; every model evaluated in the same
+dtype so metric semantics are unchanged); `configs/eval.yaml` +
+`configs/eval_selection.yaml` flipped to `float16`. S2/S4/S6/S8 keep bf16 for
+numerical stability (`configs/drift.yaml train.bf16: true`,
+discover/graft inherit `dtype: bfloat16` from `configs/base.yaml`).
+
+The LoRA phase initially OOM'd at the preregistered worst-case shape
+(batch 4 x seq 1024): the fp32 loss logits over the 256k vocab allocate
+batch*len*256000*4B = 4.2 GiB per fwd/bwd, on top of the 6.7 GB bf16 base.
+Re-run at batch 2 x seq 512 (both dtypes): step time **~43 s** and peak
+10.3 GB — the working set exceeds the 7.98 GB card, so Windows WDDM spills to
+shared memory and thrashes PCIe (fp16 ≈ bf16 step time confirms it is
+memory-bound). A 3.5B-model LoRA on this card needs a quantized frozen base.
+Measured the real SFT token-length distribution with the global tokenizer:
+mean 550, p50 514, p90 686, p95 791, p99 1020, max 1930 (most batches pad near
+the 1024 cap — the worst-case OOM would hit in the real run too).
+
+Config consequences (metric-neutral, effective batch unchanged):
+`configs/drift.yaml` micro-batch 4 → 2, grad_accum 8 → 16 (effective batch 32,
+LR schedule and optimizer-step count identical); added
+`PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` to `.env` (a bf16 bench
+step had 2.17 GiB stranded in reserved-but-unallocated). Empirical QLoRA probe
+(`scripts/quant_lora_probe.py`) launched to size the training path
+(NF4 frozen base + bf16 LoRA across shapes).
+
+**2026-11-13 17:55 (QLoRA probe results; AMP banned for S2):**
+`scripts/quant_lora_probe.py` on the RX 6600 — all shapes consolidated in
+`results/quant_lora_probe.json` (note: each probe run overwrote the file, so
+the runs were consolidated from the per-run logs into one JSON before any
+metric was copied elsewhere):
+
+- `nf4_ckpt_b2_s512`: **78.27 s/step, peak 8.05 GB** — the +0.07 GB over the
+  7.98 GB card is a catastrophic WDDM spill (16x slowdown), and
+  `merge_and_unload` on the NF4 model works (`merge=ok`).
+- `nf4_nockpt_b1_s512`: 15.99 s/step, 11.29 GB — gradient checkpointing is
+  mandatory.
+- `nf4_ckpt_b1_s512` (fp32 adapters): 4.74 s/step, 5.90 GB — fits.
+- `nf4_ckpt_b1_s512_autocast_bf16` / `_fp16`: 35.10 s / 70.83 s per step at
+  6.65 GB — **Trainer-level AMP is pathological on this ROCm/Windows stack**
+  (7-15x slower than no autocast at the same shape); fp16 AMP with GradScaler
+  is the worst.
+- `nf4_fp16_lora_fp16_scaler/_noscaler_b1_s512`: **3.70-3.71 s/step, 5.90 GB**
+  — pure fp16 (NF4 fp16 compute + fp16 adapters, no autocast) is the fastest
+  viable recipe.
+
+Decision: S2 runs batch 1 × grad_accum 32 (effective batch 32, LR schedule
+and optimizer-step count unchanged), `load_in_4bit: true`, `bf16: false`, no
+autocast anywhere. Extrapolation: 10,000 micro-steps x ~3.7 s ≈ 10.3 h (fp32
+adapters fallback ≈ 13.2 h). `configs/drift.yaml` updated accordingly; prereg
+deviation rows added for (a) the NF4 frozen base + clean bf16 merge and (b)
+pure-fp16 training precision. `_merge_adapter_into_clean_base` (fresh bf16
+CPU load; keeps `quantization_config` out of the saved config) is wired as the
+mandatory merge path for the NF4 run.
+
+## 2026-11-13 - S2/S4 precheck before the long GPU blocks
+
+**Goal:** before committing the GPU to the ~10 h S2 run, verify on real data
+(a) that the planned pure-fp16 S2 recipe produces finite loss/grads, and (b)
+that the S4 discovery engine actually fits the 8 GB card at the preregistered
+seq 256 / batch 1 (S4 was budgeted on healthy-bf16 T4 numbers; TransformerLens
+does not support quantized models, so NF4 is not available there).
+
+**Run 1 (`scripts/s2_s4_precheck.py`, results in
+`results/s2_s4_precheck.json`):**
+
+- fp16_loss probe: losses [3.3929, 2.819, 2.501] over three real MedMCQA SFT
+  steps — finite and decreasing, peak 6.01 GB. Script findings while reading:
+  the adapter-fp16 cast was placed before `get_peft_model`, but
+  `prepare_model_for_kbit_training` freezes every parameter first, so that
+  cast was a no-op and the adapters were actually fp32; and the grad-abs-sum
+  check ran after `zero_grad(set_to_none=True)`, so it measured nothing. Loss
+  decrease proves gradients flowed; run 2 fixes both instrumentation points
+  and validates the real fp16-adapter recipe end to end.
+- S4 engine probe: crashed at the call site —
+  `run_circuitkit_discovery() got an unexpected keyword argument 'metric'`.
+  Script bug, not a feasibility verdict; fixed and relaunched as run 2.
+
+**Code changes from run 1:** `load_aligned_model` now casts trainable params
+to fp16 AFTER the LoRA wrap (only when `load_in_4bit` + cuda + `bf16: false`),
+and the probe mirrors the same recipe.
+
+**Run 2 (`scripts/s2_s4_precheck.py`, results in
+`results/s2_s4_precheck.json`):**
+
+- **fp16 adapter probe (fixed instrumentation):** losses [3.3929, NaN, NaN],
+  grad\_abs\_sum\_per\_step [6579.0, NaN, NaN] — **fp16 adapters NaN at
+  optimizer step 2** (gradient overflow: step-1 grad\_abs\_sum 6579 far
+  exceeds the fp16 representable range for stable accumulation). Adapter
+  dtype confirmed `torch.float16`. Peak 5.84 GB (fits). Step times
+  [5.86, 3.98, 3.99] s — first step includes CUDA kernel compilation.
+
+  Decision: keep adapters in **fp32** (peft default; no cast). The
+  production `load_aligned_model` and `apply_lora` do NOT cast trainable
+  params to fp16. Pure fp32 adapters on the NF4 fp16-dequant base measured
+  4.74 s/micro-step and finite losses/grads
+  (`results/quant_lora_probe.json`). Extrapolation: 10,000 micro-steps ×
+  4.74 s ≈ 13.2 h (vs 10.3 h for fp16 which is not viable).
+
+- **S4 engine probe:** OOM at **13.58 GB** (seq 256, batch 1, n\_examples 2,
+  ig\_steps 2, bf16). PyTorch allocated 13.58 GiB on the 7.98 GiB card (WDDM
+  unified-memory spill). TransformerLens does not support quantized models,
+  so NF4 is not available for discovery. The model weights alone in bf16
+  are ~7 GB; bf16 matmul on gfx1032 is emulated as fp32, doubling
+  activation/autograd intermediate memory.
+
+  S4 mitigation decided before S2 launch (per prereg §10):
+  1. Switch discovery dtype bfloat16 → **float16** (native on gfx1032;
+     avoids fp32 upcast of activation intermediates, halving activation
+     memory).
+  2. Reduce max\_seq\_len 256 → **96** (safety pairs max 81 tokens, domain
+     pairs max 206 but median 48, p90 75; only 13/256 domain pairs
+     truncated).
+  3. Change `_apply_memory_controls` n\_ctx floor 128 → 48 (so n\_ctx = 96).
+
+  Estimated peak: 7 + (6.58 / 2) × (0.5 × (96/256)² + 0.5 × (96/256))
+  ≈ 7.86 GB (fits under 7.98 GB). Re-probe while S2 trains to confirm.
+
+  Configs updated: `configs/discover.yaml` (dtype: float16, max\_seq\_len: 96
+  for both safety and domain).
+  Prereg deviation added for S4 dtype + seq\_len reduction.
+

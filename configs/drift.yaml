@@ -19,10 +19,20 @@ lora:
 train:
   epochs: 2
   lr: 2.0e-4
-  batch_size: 4
-  grad_accum: 8
+  # 2026-11-13: micro-batch 4 x seq ~1024 OOMs the 8 GB card (fp32 logits over
+  # the 256k vocab: batch*len*256000*4B = 4.2 GiB per fwd/bwd) and batch 2
+  # spills into WDDM swap (8.05 GB peak -> 78 s/step). batch 1 + grad_accum 32
+  # keeps the effective batch (32), LR schedule and optimizer steps identical.
+  # The frozen base is stored NF4 (load_in_4bit) with fp16 dequant; adapters
+  # stay fp32 (fp16 adapters NaN at step 2 - see results/s2_s4_precheck.json)
+  # with NO autocast (AMP is pathological on this ROCm/Windows stack). See
+  # results/quant_lora_probe.json, results/s2_s4_precheck.json and
+  # docs/EXPERIMENT_LOG.md.
+  batch_size: 1
+  grad_accum: 32
+  load_in_4bit: true
+  bf16: false
   max_seq_len: 1024
-  bf16: true
   gradient_checkpointing: true
   warmup_ratio: 0.03
   logging_steps: 10

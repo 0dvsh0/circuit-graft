@@ -17,7 +17,10 @@ eval:
   medqa_test: 500
   pubmedqa_labeled: 500
   mmlu_non_medical: 1000
-  harmbench: 200
+  # HarmBench has exactly 200 "standard" behaviours: test keeps the
+  # preregistered 150-row cap, the remaining 50 rows form the selection split
+  # (2026-11-13 deviation; see scripts/resplit_harmbench_selection.py).
+  harmbench: 150
   advbench: 200
   sorrybench: 440
   wildjailbreak: 250
@@ -27,7 +30,7 @@ eval:
   domain_harmful: 150
   safety_pairs: 256
   domain_pairs: 256
-  selection_harmbench: 100
+  selection_harmbench: 50
   selection_xstest_safe: 100
   selection_medmcqa_validation: 200
   seed: 0

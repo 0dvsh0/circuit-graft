@@ -406,7 +406,9 @@ def _torch_dtype(name: str) -> Any:
 
 def load_aligned_model(cfg: DriftConfig, base: BaseConfig) -> tuple[Any, Any, str]:
     """Load θ_A and its tokenizer using the model's own chat template."""
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    import torch
+    from peft import prepare_model_for_kbit_training
+    from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
     token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
     device = _resolve_device(cfg.device)
@@ -415,6 +417,36 @@ def load_aligned_model(cfg: DriftConfig, base: BaseConfig) -> tuple[Any, Any, st
     )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+    if getattr(cfg.train, "load_in_4bit", False) and device == "cuda":
+        # QLoRA-style training: a frozen bf16 3.5B base (6.7 GB) plus the
+        # CE-backward logits buffers cannot coexist in 8 GB VRAM (bf16 bench:
+        # 43.8 s/micro-step from Windows WDDM spill at peak 10.3 GB). Store
+        # the frozen base in NF4 and compute in bf16; the merged checkpoint
+        # is materialized in clean bf16 by _merge_adapter_into_clean_base.
+        # Compute dtype follows the AMP choice: bf16 where the card supports
+        # it natively, else fp16 (bf16 matmul is emulated on gfx1032).
+        import torch
+
+        compute_dtype = (
+            torch.bfloat16 if (cfg.train.bf16 and torch.cuda.is_bf16_supported()) else torch.float16
+        )
+        model = AutoModelForCausalLM.from_pretrained(
+            base.models.aligned,
+            quantization_config=BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=compute_dtype,
+                bnb_4bit_use_double_quant=True,
+            ),
+            token=token,
+            trust_remote_code=True,
+            device_map="cuda",
+        )
+        model.config.use_cache = False
+        model = prepare_model_for_kbit_training(
+            model, use_gradient_checkpointing=cfg.train.gradient_checkpointing
+        )
+        return model, tokenizer, device
     model = AutoModelForCausalLM.from_pretrained(
         base.models.aligned,
         dtype=_torch_dtype(cfg.dtype),
@@ -455,6 +487,13 @@ def build_training_args(cfg: DriftConfig, out_dir: str | Path, device: str) -> A
     from trl import SFTConfig
 
     use_cpu = device == "cpu"
+    # AMP decision. Trainer-level autocast was measured pathological on the
+    # local ROCm/Windows stack (bf16 autocast 35.1 s, fp16 autocast + GradScaler
+    # 70.8 s per micro-step vs 3.70-4.74 s without autocast — see
+    # scripts/quant_lora_probe.py, results/quant_lora_probe.json). The dtype
+    # that runs the GEMMs is chosen by the model load (pure fp16 / fp32
+    # adapters); AMP stays off unless the config explicitly opts into bf16 on
+    # hardware where it is native and healthy.
     bf16 = bool(cfg.train.bf16 and device == "cuda")
     if bf16:
         try:
@@ -471,6 +510,7 @@ def build_training_args(cfg: DriftConfig, out_dir: str | Path, device: str) -> A
         learning_rate=cfg.train.lr,
         max_length=cfg.train.max_seq_len,
         bf16=bf16,
+        fp16=False,
         gradient_checkpointing=cfg.train.gradient_checkpointing,
         warmup_ratio=cfg.train.warmup_ratio,
         logging_steps=cfg.train.logging_steps,
@@ -504,6 +544,37 @@ def _default_trainer_factory(
         data_collator=data_collator,
         processing_class=processing_class,
     )
+
+
+def _merge_adapter_into_clean_base(
+    cfg: DriftConfig,
+    base: BaseConfig,
+    adapter_dir: Path,
+    token: str | None,
+) -> Any:
+    """Merge the saved adapter into a fresh non-quantized CPU copy of θ_A.
+
+    The adapter was trained on an NF4-quantized frozen base (8 GB VRAM
+    constraint). Materializing the merged checkpoint from a plain
+    ``dtype``-typed load keeps ``config.json`` free of ``quantization_config``
+    and the weights exactly the bf16/fp16 dtype every downstream stage
+    expects. Runs on CPU to keep VRAM free; a one-off ~minutes cost.
+    """
+    from peft import PeftModel
+    from transformers import AutoModelForCausalLM
+
+    model = AutoModelForCausalLM.from_pretrained(
+        base.models.aligned,
+        dtype=_torch_dtype(cfg.dtype),
+        token=token,
+        trust_remote_code=True,
+    )
+    model.config.use_cache = False
+    wrapped = PeftModel.from_pretrained(model, str(adapter_dir))
+    merged = wrapped.merge_and_unload()
+    if merged is None:
+        raise RuntimeError("merge_and_unload returned None")
+    return merged
 
 
 def _summarise_training(trainer: Any, result: Any) -> dict[str, Any]:
@@ -790,6 +861,11 @@ def run_drift(
     )
 
     lora_model = (lora_wrapper or apply_lora)(model, cfg)
+    # Adapter dtype note: fp16 adapters were tested on real data and NaN'd at
+    # optimizer step 2 (results/s2_s4_precheck.json: losses [3.3929, NaN, NaN],
+    # grad_abs_sum [6579, NaN, NaN]) - peft instantiates adapters in fp32 and
+    # they STAY fp32. Pure fp32 adapters on the NF4 fp16-dequant base measured
+    # 4.74 s/micro-step and finite losses/grads; no autocast is involved.
     trainable = _trainable_parameters(lora_model)
     args = build_training_args(cfg, out_dir, device)
     collator = PaddingCollator(int(pad_id))
@@ -809,12 +885,19 @@ def run_drift(
 
     merged_path: Path | None = None
     if cfg.merge_adapter:
-        if not hasattr(trained_model, "merge_and_unload"):
-            raise TypeError("the trained model does not expose merge_and_unload")
-        merged_model = trained_model.merge_and_unload()
-        if merged_model is None:
-            raise RuntimeError("merge_and_unload returned None")
         merged_dir.mkdir(parents=True, exist_ok=True)
+        if getattr(cfg.train, "load_in_4bit", False) and device == "cuda":
+            # Adapter was trained on an NF4-quantized base; merge into a fresh
+            # plain-dtype copy so the saved checkpoint carries no
+            # quantization_config (see _merge_adapter_into_clean_base).
+            hf_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+            merged_model = _merge_adapter_into_clean_base(cfg, base, adapter_dir, hf_token)
+        else:
+            if not hasattr(trained_model, "merge_and_unload"):
+                raise TypeError("the trained model does not expose merge_and_unload")
+            merged_model = trained_model.merge_and_unload()
+            if merged_model is None:
+                raise RuntimeError("merge_and_unload returned None")
         merged_model.save_pretrained(str(merged_dir), safe_serialization=True)
         _save_tokenizer(tokenizer, merged_dir)
         for filename in _DRIFT_METADATA:
@@ -832,6 +915,9 @@ def run_drift(
         "model_source": base.models.aligned,
         "device": device,
         "dtype": cfg.dtype,
+        "train_quantization": (
+            "nf4-frozen-base" if getattr(cfg.train, "load_in_4bit", False) else "none"
+        ),
         "sft_dataset": str(sft_dir),
         "train_rows_in": len(rows),
         "validation_rows": len(validation_rows),

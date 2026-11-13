@@ -74,7 +74,7 @@ max_rows:
   medqa_test: 100
   pubmedqa_labeled: 100
   mmlu_non_medical: 100
-  selection_harmbench: 60
+  selection_harmbench: 50
   selection_xstest_safe: 60
   selection_medmcqa_validation: 120
 skip_existing: true
@@ -82,4 +82,8 @@ dgr_min_gain: 0.03
 seed: 0
 hf_org: "${HF_ORG}"
 device: auto
-dtype: bfloat16
+# 2026-11-13 deviation: float16 for eval/generation only. The gpu_bench run on
+# the RX 6600 showed bf16 matmul is emulated on gfx1032 (3.51 vs 13.07 TFLOPS;
+# generation 2-4.5x slower). Training/discovery stages keep bf16 for numerical
+# stability (see docs/PREREGISTRATION.md section 10).
+dtype: float16

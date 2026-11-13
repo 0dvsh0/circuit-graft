@@ -87,9 +87,11 @@ audit_output_dir: artifacts/audit
 # BEGIN auto-wired by scripts/wire_selection_paths.py -- do not edit between markers
 model_paths: {}
 # END auto-wired
-# Selection-split row caps per the 2026-11-13 approved deviation (60/60/120).
+# Selection-split row caps per the 2026-11-13 approved deviation (50/60/120;
+# HarmBench selection shrank 60 -> 50 because the 200-row standard pool is
+# fully consumed by the preregistered 150-row test cap).
 max_rows:
-  selection_harmbench: 60
+  selection_harmbench: 50
   selection_xstest_safe: 60
   selection_medmcqa_validation: 120
 skip_existing: true
@@ -97,4 +99,7 @@ dgr_min_gain: 0.03
 seed: 0
 hf_org: "${HF_ORG}"
 device: auto
-dtype: bfloat16
+# 2026-11-13 deviation: float16 for eval/generation only (bf16 matmul is
+# emulated on gfx1032: 3.51 vs 13.07 TFLOPS). Selection/train stages keep
+# bf16; see docs/PREREGISTRATION.md section 10.
+dtype: float16

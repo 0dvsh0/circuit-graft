@@ -166,14 +166,27 @@ def bench_lora(dtype: torch.dtype) -> None:
 
         tok = AutoTokenizer.from_pretrained(BENCH_MODEL)
         model = AutoModelForCausalLM.from_pretrained(BENCH_MODEL, torch_dtype=dtype)
-        lora = LoraConfig(r=16, lora_alpha=32, lora_dropout=0.05, bias="none", task_type="CAUSAL_LM")
+        lora = LoraConfig(
+            r=16,
+            lora_alpha=32,
+            lora_dropout=0.05,
+            bias="none",
+            task_type="CAUSAL_LM",
+            # peft >= 0.14 no longer infers modules from task_type; match the
+            # all-linear LoRA used by the S2 drift / S6 graft configs.
+            target_modules="all-linear",
+        )
         model = get_peft_model(model, lora)
         model = model.to("cuda")
         model.train()
         model.gradient_checkpointing_enable()
 
+        # batch 2 x seq 512, not the SFT worst case (batch 4 x seq 1024): the
+        # fp32 loss logits over the 256k vocab allocate batch*len*256000*4B
+        # (4.2 GiB at the worst case) and OOM the 8 GB card in both dtypes.
+        # Real S2 runs micro-batch 2 (configs/drift.yaml).
         seq = 512
-        batch = 4
+        batch = 2
         input_ids = torch.randint(0, model.get_input_embeddings().num_embeddings, (batch, seq), device="cuda")
         attn = torch.ones_like(input_ids)
         labels = input_ids.clone()
@@ -224,15 +237,31 @@ def recommend() -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--skip-lora", action="store_true")
+    parser.add_argument(
+        "--lora-only",
+        action="store_true",
+        help="re-run only the LoRA phase, keeping the saved matmul/generation results",
+    )
     args = parser.parse_args()
 
     if not torch.cuda.is_available():
         print("FATAL: torch.cuda.is_available() is False; ROCm torch not functional")
         return 1
 
-    bench_sanity()
-    for dtype in (torch.float16, torch.bfloat16):
-        bench_generation(dtype)
+    if args.lora_only:
+        prior = REPO_ROOT / "results" / "gpu_bench.json"
+        if not prior.exists():
+            print("FATAL: --lora-only needs an existing results/gpu_bench.json")
+            return 1
+        prior_results = json.loads(prior.read_text(encoding="utf-8"))
+        for key in ("device", "matmul", "generation"):
+            if key in prior_results:
+                RESULTS[key] = prior_results[key]
+    else:
+        bench_sanity()
+        for dtype in (torch.float16, torch.bfloat16):
+            bench_generation(dtype)
+
     if not args.skip_lora:
         for dtype in (torch.float16, torch.bfloat16):
             bench_lora(dtype)

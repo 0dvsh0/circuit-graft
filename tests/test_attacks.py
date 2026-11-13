@@ -92,7 +92,18 @@ def _attacks_config(tmp_path: Path, **overrides: Any) -> AttacksConfig:
     return AttacksConfig(**data)
 
 
-def test_load_contrast_prompts_file_and_fallback(tmp_path: Path) -> None:
+def test_load_contrast_prompts_file_and_fallback(tmp_path: Path, monkeypatch: Any) -> None:
+    # The missing-pairs fallback must be hermetic: the repo-level default
+    # (artifacts/data/pairs/safety.jsonl) exists after `cg data` runs, so reroute
+    # the default lookup to a nonexistent temp path to exercise the built-in
+    # branch deterministically. Explicit user paths pass through unchanged.
+    monkeypatch.setattr(
+        "circuitgraft.attacks.abliterate.resolve_stage_file",
+        lambda path: tmp_path / "empty_pairs.jsonl"
+        if "artifacts" in str(path)
+        else path,
+    )
+
     # Test fallback
     harmful, harmless, source = load_contrast_prompts(tmp_path / "nonexistent.jsonl")
     assert len(harmful) > 0

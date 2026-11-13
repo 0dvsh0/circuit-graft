@@ -251,7 +251,10 @@ def _apply_memory_controls(model: Any, *, max_seq_len: int) -> None:
     cfg = getattr(model, "cfg", None)
     current_ctx = getattr(cfg, "n_ctx", None) if cfg is not None else None
     if isinstance(current_ctx, int) and max_seq_len:
-        cfg.n_ctx = min(current_ctx, max(int(max_seq_len), 128))
+        # Floor 48 (was 128): gfx1032 8 GB VRAM requires n_ctx ≤ 96 for
+        # discovery (bf16 emulation doubles activation memory; fp16 + seq
+        # 96 ≈ 7.86 GB).
+        cfg.n_ctx = min(current_ctx, max(int(max_seq_len), 48))
 
     named_parameters = getattr(model, "named_parameters", None)
     if callable(named_parameters):

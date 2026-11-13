@@ -252,6 +252,10 @@ class SftTrainConfig(StrictModel):
     warmup_ratio: float = 0.03
     logging_steps: int = 10
     save_steps: int = 500
+    # QLoRA-style option for 8 GB cards: store the frozen base in NF4 and
+    # compute in bf16. The merged checkpoint is always materialized in the
+    # plain bf16/fp16 dtype the stage config declares (never quantized).
+    load_in_4bit: bool = False
 
 
 class DriftConfig(CommonConfig):
