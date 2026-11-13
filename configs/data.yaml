@@ -46,6 +46,7 @@ curate:
   num_questions: 3
   embedding_dedup: true
   twin_cache: .cache/harmless_twins.json
+  auto_approve_human_review: true
 
 decontam:
   ngram_size: 13

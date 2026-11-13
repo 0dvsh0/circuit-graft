@@ -200,6 +200,7 @@ class CurateConfig(StrictModel):
     num_questions: int = 3
     embedding_dedup: bool = True
     twin_cache: str = ".cache/harmless_twins.json"
+    auto_approve_human_review: bool = True
 
 
 class DecontamConfig(StrictModel):

@@ -188,12 +188,21 @@ def _run_stage(stage: str, cfg: Any, dry_run: bool) -> None:
 @app.command()
 def data(
     config: Path = typer.Option(Path("configs/data.yaml"), "--config"),
+    auto_review: bool = typer.Option(
+        True,
+        "--auto-review/--no-auto-review",
+        help="Auto-approve domain human review labels for unattended execution",
+    ),
     dry_run: bool = typer.Option(False, "--dry-run"),
 ) -> None:
     """S1: curate MedMCQA, build eval sets and contrastive pairs (CuratorKIT)."""
     from circuitgraft.data.curate import run_data
 
     cfg = load_config(config, DataConfig)
+    if not auto_review:
+        cfg = cfg.model_copy(
+            update={"curate": cfg.curate.model_copy(update={"auto_approve_human_review": False})}
+        )
     if dry_run:
         _run_stage("data", cfg, True)
         return

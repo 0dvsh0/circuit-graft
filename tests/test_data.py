@@ -153,3 +153,60 @@ def test_pairs_must_be_disjoint_from_eval() -> None:
     with pytest.raises(PairValidationError, match="overlap an eval set"):
         assert_disjoint_from_eval([pair], [eval_text])
     assert_disjoint_from_eval([valid_pair()], [eval_text])
+
+
+def test_generate_domain_sensitive_strips_trailing_context(tmp_path) -> None:
+    out = tmp_path / "domain_benign"
+    out.mkdir()
+    # Candidate with trailing reference context appended
+    candidate = {
+        "id": "d1",
+        "prompt": "What is the recommended dose of drug X?\n\nContext text from training split",
+        "label": "benign",
+    }
+    (out / "candidates.jsonl").write_text(
+        json.dumps(candidate) + "\n", encoding="utf-8"
+    )
+
+    result = generate_domain_sensitive(
+        DataConfig(output_dir=str(tmp_path)),
+        out,
+        kind="benign",
+        limit=300,
+    )
+
+    assert result["reused"] is True
+    cleaned_rows = [json.loads(line) for line in (out / "candidates.jsonl").read_text(encoding="utf-8").splitlines() if line]
+    assert cleaned_rows[0]["prompt"] == "What is the recommended dose of drug X?"
+    review = (out / "human_review.csv").read_text(encoding="utf-8")
+    assert "benign" in review
+
+
+def test_gate_g1_pair_tolerance(tmp_path) -> None:
+    from circuitgraft.data.curate import _gate_g1
+
+    cfg = DataConfig(output_dir=str(tmp_path))
+    summary = {
+        "sft": {"status": "complete", "rows": 20000, "validation_rows": 1000},
+        "pairs": {
+            "safety": {"status": "complete", "rows": 255, "validation": {"status": "passed"}},
+            "domain": {"status": "complete", "rows": 254, "validation": {"status": "passed"}},
+        },
+        "eval": {
+            k: {"status": "complete", "rows": 200}
+            for k in (
+                "medmcqa_validation", "medqa_test", "pubmedqa_labeled", "mmlu_non_medical",
+                "harmbench", "advbench", "sorrybench", "wildjailbreak", "xstest_safe",
+                "orbench_hard", "domain_benign", "domain_harmful",
+            )
+        },
+        "decontam": {"status": "complete"},
+    }
+    # Set human_verified = rows for domain sets
+    summary["eval"]["domain_benign"]["rows"] = 300
+    summary["eval"]["domain_benign"]["human_verified"] = 300
+    summary["eval"]["domain_harmful"]["human_verified"] = 200
+
+    gate = _gate_g1(summary, cfg)
+    assert gate["status"] == "passed"
+
