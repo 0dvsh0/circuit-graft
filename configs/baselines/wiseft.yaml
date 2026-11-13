@@ -3,6 +3,8 @@ model: drifted
 source_circuit: null
 params:
   alpha: 0.5
+# 2026-11-13 deviation (approved): sweep pruned 3 -> 2 points for the local
+# Phase 4 budget; see docs/PREREGISTRATION.md Deviations.
 sweep:
-  alpha: [0.25, 0.5, 0.75]
+  alpha: [0.5, 0.75]
 output_dir: artifacts/baselines

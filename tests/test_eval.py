@@ -195,7 +195,12 @@ def test_auditkit_redteam_with_fake_generation() -> None:
     assert result["pass_rate"] == pytest.approx(1.0)
 
 
-def test_run_audit_reports_not_run_primary_but_keeps_auditkit(tmp_path: Path) -> None:
+def test_run_audit_reports_not_run_primary_but_keeps_auditkit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The ``not_run`` branch is the no-CUDA path; force it instead of relying
+    # on the ambient machine (a CUDA/ROCm box must not flip this expectation).
+    monkeypatch.setattr("circuitgraft.eval.safety._guard_device", lambda cfg: None)
     cfg = EvalConfig(
         models=["aligned"],
         model_paths={"aligned": "fake-aligned"},

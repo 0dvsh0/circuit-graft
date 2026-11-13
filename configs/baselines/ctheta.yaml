@@ -10,6 +10,8 @@ params:
   # suggestions. 0.05 mirrors the graft config's k_s; apply_ctheta cannot use
   # the per-head units, so the resulting mask is coarser by construction.
   top_fraction: 0.05
+# 2026-11-13 deviation (approved): sweep pruned 4 -> 2 points for the local
+# Phase 4 budget; see docs/PREREGISTRATION.md Deviations.
 sweep:
-  strength: [0.25, 0.5, 1.0, 1.5]
+  strength: [0.5, 1.0]
 output_dir: artifacts/baselines

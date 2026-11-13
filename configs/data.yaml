@@ -4,7 +4,9 @@ sft:
   source: medmcqa
   train_split: train
   validation_split: validation
-  max_train_rows: 20000
+  # 2026-11-13 deviation (approved): reduced 20000 -> 5000 for the local
+  # single-GPU Phase 4 run; see docs/PREREGISTRATION.md Deviations.
+  max_train_rows: 5000
   max_validation_rows: 1000
   answer_format: "Answer: {letter}. Explanation: {explanation}"
   require_explanation: true

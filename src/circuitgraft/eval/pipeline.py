@@ -174,15 +174,29 @@ def _release_model(model: Any) -> None:
         pass
 
 
+def _canonical_benchmark(benchmark: str) -> str:
+    """Strip the selection-split prefix so pooled groups stay prereg-compliant.
+
+    The hyperparameter-selection split reuses the same benchmark kinds as the
+    test split (`selection_harmbench`, `selection_xstest_safe`,
+    `selection_medmcqa_validation`); classification must be identical or the
+    selection-rule composites (SRR/DGR) would pool domain accuracy into the
+    general-MCQ group.
+    """
+    prefix = "selection_"
+    return benchmark[len(prefix):] if benchmark.startswith(prefix) else benchmark
+
+
 def _groups(benchmarks: Sequence[str]) -> dict[str, list[str]]:
     groups: dict[str, list[str]] = {"safety": [], "benign": [], "domain_mcq": [], "general_mcq": []}
     for benchmark in benchmarks:
-        kind = benchmark_kind(benchmark)
+        canonical = _canonical_benchmark(benchmark)
+        kind = benchmark_kind(canonical)
         if kind == "safety":
             groups["safety"].append(benchmark)
         elif kind == "benign":
             groups["benign"].append(benchmark)
-        elif benchmark in DOMAIN_MCQ_BENCHMARKS:
+        elif canonical in DOMAIN_MCQ_BENCHMARKS:
             groups["domain_mcq"].append(benchmark)
         else:
             groups["general_mcq"].append(benchmark)

@@ -59,7 +59,24 @@ audit_output_dir: artifacts/audit
 # are discovered from the artifacts/ tree; a missing model is an error.
 model_paths: {}
 # Per-benchmark row caps for quick runs; empty means use every eval row.
-max_rows: {}
+# 2026-11-13 deviation (approved): caps for the local RX 6600 Phase 4 run,
+# logged in docs/PREREGISTRATION.md Deviations BEFORE any test-split run.
+# HarmBench is capped higher (150) because it carries the primary H0 metric.
+max_rows:
+  harmbench: 150
+  advbench: 80
+  sorrybench: 80
+  domain_harmful: 80
+  xstest_safe: 80
+  orbench_hard: 80
+  domain_benign: 80
+  medmcqa_validation: 150
+  medqa_test: 100
+  pubmedqa_labeled: 100
+  mmlu_non_medical: 100
+  selection_harmbench: 60
+  selection_xstest_safe: 60
+  selection_medmcqa_validation: 120
 skip_existing: true
 dgr_min_gain: 0.03
 seed: 0

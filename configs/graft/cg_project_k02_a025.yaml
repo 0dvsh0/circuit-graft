@@ -1,0 +1,17 @@
+# 2026-11-13 deviation (approved): pruned CG sweep point, prereg §7 grid
+# reduced to k_S {2%, 10%} x alpha {0.25, 1.0} x alpha_O {1.0} plus the
+# cg_project default. See docs/PREREGISTRATION.md Deviations.
+name: cg_project_k02_a025
+selection: topk
+overlap_strategy: svd_project
+delta_source: alignment
+k_s: 0.02
+k_d: 0.05
+alpha: 0.25
+alpha_o: 1.0
+svd_energy: 0.9
+svd_max_rank: 16
+random_seed: 0
+safety_scores: artifacts/discover/safety/scores.json
+domain_scores: artifacts/discover/domain/scores.json
+output_dir: artifacts/graft

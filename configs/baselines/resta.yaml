@@ -6,6 +6,8 @@ params:
   dare: true
   dare_drop_rate: 0.3
   device: cpu
+# 2026-11-13 deviation (approved): sweep pruned 3 -> 2 points for the local
+# Phase 4 budget; see docs/PREREGISTRATION.md Deviations.
 sweep:
-  alpha: [0.1, 0.25, 0.4]
+  alpha: [0.25, 0.4]
 output_dir: artifacts/baselines

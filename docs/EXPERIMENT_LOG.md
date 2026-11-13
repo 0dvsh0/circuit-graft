@@ -789,3 +789,76 @@ Colab notebook, and prepare the Git tree for remote execution on Tesla T4.
    `attack_decay.png` carry measured post-attack HRR. `run_all.sh --full`
    already does this; quantization stays unavailable until a real quantized
    checkpoint is saved.
+
+## 2026-11-13 - Emergency local Phase 4 plan (AMD RX 6600, no cloud quota)
+
+**Goal:** run the full Phase 4 matrix locally within one hackathon day after
+Kaggle/Colab quotas stopped the research mid-run. Machine: i3-12100F (4c/8t,
+16 GB RAM), AMD Radeon RX 6600 8 GB, Windows 11. No CUDA.
+
+**Decision (human-approved, logged as prereg deviations BEFORE any test-split
+run):** SFT rows 20000 -> 5000; S7 test rows capped (~1,050/model,
+HarmBench 150); selection split 60/60/120; sweeps pruned
+(RESTA 2, WiSE-FT 2, C-Theta 2, SafeLoRA default+1, CG 5 points);
+cg_random 3 seeds on test at the chosen cg_project setting; string-match judge
+(frozen-config CPU fallback; WildGuard `not_run`); slim attacks
+(abliteration always, harmful-FT small, quantization only if bitsandbytes-ROCm
+installs).
+
+**Compute path:** official AMD PyTorch-ROCm wheels for gfx103X (TheRock via
+`https://rocm.nightlies.amd.com/v2-staging/gfx103X-all/`): torch
+2.11.0+rocm7.14.0a20260612 + rocm-sdk 7.14.0a20260612 in the repo venv
+(replaces torch 2.15.0+cpu; all other pins unchanged; transformers 5.22.1
+requires torch>=2.6). `HSA_OVERRIDE_GFX_VERSION=10.3.0` maps gfx1032 onto the
+gfx1030 code objects; math-SDPA env vars set because flash/mem-efficient CUDA
+kernels do not exist for gfx1032. HF caches moved to D: via `.env`
+(HF_HOME/HF_HUB_CACHE; datasets stay on C: where they are already populated).
+Tiny Aya weights (~14 GB) downloaded to D:. This log entry is written before
+the first Phase 4 run.
+
+**Planned sequence:** S1 data -> S2 drift (GPU) -> S3 audit -> S4 discovery
+(GPU) -> S5 baselines + S6 graft (CPU weight arithmetic, mmap) -> selection
+eval (GPU) -> preregistered selection rule -> final eval 12+3 models (GPU) ->
+S8 attacks + eval-attacks -> S9 report -> S10 publish.
+
+**2026-11-13 afternoon (prep while weights/SDK download):** added
+`configs/eval_selection.yaml` (17 eval names: aligned+drifted anchors, 15
+sweep-point candidates per the deviation table; benchmarks
+selection_harmbench/selection_xstest_safe/selection_medmcqa_validation at
+60/60/120; separate `results/generations_selection` cache;
+`artifacts/eval_selection` output). Sweep runs are hashed directories
+(`artifacts/baselines/resta-<hash>`), so glob resolution cannot disambiguate
+sweep points; added `scripts/wire_selection_paths.py`, which maps completed
+runs to preregistered logical names from `baseline_stats.json`/`graft_stats.json`
+and fills the marker-delimited `model_paths` block (fails loudly when a sweep
+point is missing or ambiguous). Added `scripts/prepare_selection_data.py` to
+copy the S1 selection split to `artifacts/data/eval/selection_*.jsonl` (verify
+with `--check`). Added `scripts/gpu_bench.py` (dtype decision: fp16 vs bf16
+matmul, eval-style generation batch 8, S2-style LoRA step; writes
+`results/gpu_bench.json`; a bf16 emulation slowdown on gfx1032 triggers the
+float16 switch + prereg deviation note). Stage order note: `run_all.sh --full`
+defaults to `SWEEP_BASELINES=0`; S5 must run as
+`cg baselines --config configs/baselines/<x>.yaml --sweep` per method.
+
+**2026-11-13 16:00 (ROCm stack operational):** pip's CDN downloads kept dying
+mid-wheel ("Wheel 'rocm-sdk-core' ... is invalid" — no resume in pip); wrote
+`scripts/download_rocm_wheels.py` (6 parallel byte-range chunks, per-chunk
+resume `.partN`, zip-integrity check) and pulled
+`rocm_sdk_core` + `rocm_sdk_libraries_gfx103x_all` (710.4 + 224.4 MiB).
+`rocm_sdk_devel` (1.6 GiB) deliberately skipped: compile-time headers only,
+not needed to run torch — saves the largest single download on the throttled
+link. Installed `rocm==7.14.0a20260612` (metapackage, pip-cached sdist),
+`rocm-sdk-core==7.14.0a20260612`, `rocm-sdk-libraries-gfx103x-all==7.14.0a20260612`
+alongside the already-installed torch 2.11.0+rocm7.14.0a20260612.
+`scripts/torch_smoke.py`: `cuda.is_available()=True`, AMD Radeon RX 6600,
+HIP 7.14.60850, `HSA_OVERRIDE_GFX_VERSION=10.3.0` active; fp16 matmul
+max_err 0.063, bf16 matmul max_err 0.5 (both consistent with normal rounding,
+not emulation), backward pass OK. `cg doctor` exit 0 (all libraries present;
+stderr carries a harmless bitsandbytes `rocminfo`-probe warning).
+`pytest -q`: 195/195 after fixing `test_run_audit_reports_not_run_primary_but_keeps_auditkit`
+— the test assumed a no-CUDA machine; `_guard_device` correctly returns
+"cuda" on this box, so the test now monkeypatches `_guard_device` to None to
+exercise the intended branch explicitly (test-only change; no pipeline
+change). Tooling note: PowerShell 5.1 `2>&1` merge reports spurious exit 1
+for native stderr — use separated redirection to read true exit codes.
+

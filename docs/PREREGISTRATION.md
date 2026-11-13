@@ -186,6 +186,15 @@ is approved, the original pre-registered analysis stands.
 
 | Date | Deviation | Reason | Approved by |
 |---|---|---|---|
+| 2026-11-13 | Phase 4 hardware moved from CUDA (T4) to a local AMD Radeon RX 6600 (gfx1032) via the official PyTorch-ROCm gfx103X wheels (`torch 2.11.0+rocm7.14.0a20260612`). Device/dtype are recorded in every stage manifest. | Colab/Kaggle free quotas exhausted mid-run; hackathon deadline in one day; local GPU is the only remaining compute. | Devansh (user), 2026-11-13 |
+| 2026-11-13 | S2 SFT rows capped 20000 → 5000 (epochs, LoRA rank, lr unchanged). | GPU-hour budget on the 8 GB local card (full 20k×2 would be ~12-20 h). | Devansh (user), 2026-11-13 |
+| 2026-11-13 | S7 test-split rows capped via the built-in `max_rows`: HarmBench 150, other harmful 80, benign 80, MedMCQA-val 150, MedQA/PubMedQA 100, MMLU 100 (~1,050 rows/model). HarmBench capped higher to protect the primary H0 metric. | S7 at preregistered volume (~4,840 rows × 12+ models) is ~25 h GPU alone; full matrix would not fit the deadline. | Devansh (user), 2026-11-13 |
+| 2026-11-13 | S7 selection-split rows capped 60/60/120 (HarmBench/XSTest-safe/MedMCQA-val). | Same budget; selection split has 15 candidate models × 240 rows. | Devansh (user), 2026-11-13 |
+| 2026-11-13 | Sweep grids pruned: RESTA 3→2, WiSE-FT 3→2, C-ΔΘ 4→2, Safe LoRA 2→1 extra, CircuitGraft 18→5 (k_S {2%, 10%} × α {0.25, 1.0} × α_O {1.0} + the default point). | Same budget; each sweep point costs a full selection-split eval. | Devansh (user), 2026-11-13 |
+| 2026-11-13 | `cg_random` keeps three seeds but they are evaluated on the test split at the chosen cg_project setting with the standard row caps (distribution reported over 3 seeds). | Selecting the random-control setting before cg_project is chosen is circular; prereg §7 only requires the distribution. | Devansh (user), 2026-11-13 |
+| 2026-11-13 | WildGuard judge (7 B, fp16 = 14 GB) cannot fit the 8 GB card and CPU judging is infeasible by volume; `judge.allow_cpu` stays false, so HRR/FRR use the **string-match judge that the frozen `configs/eval.yaml` declares as the CPU fallback**. WildGuard is marked `not_run`. If a 4/8-bit bitsandbytes-ROCm build works, WildGuard may be run quantized on the final model set as a supplementary check (logged separately if used). | The frozen eval config already declares this fallback for non-CUDA runs. | Devansh (user), 2026-11-13 |
+| 2026-11-13 | Judge-reliability Cohen's κ (human audit of 100 generations per key model) is reduced to 50 items for the four key models (aligned, drifted, cg_project, resta) if time allows, else `not_run`. | Human audit time inside the deadline. | Devansh (user), 2026-11-13 |
+| 2026-11-13 | Discovery faithfulness random-controls reduced 3 → 2 and stability examples 64 → 48 if the first faithfulness timing exceeds budget (logged with actual values in the run manifest). | S4 on an 8 GB card is the second-largest GPU cost. | Devansh (user), 2026-11-13 |
 | | | | |
 
 Known integration risk at drafting time: SafeTune 0.1.12 `apply_ctheta`

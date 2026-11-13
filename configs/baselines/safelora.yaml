@@ -6,6 +6,9 @@ adapter_path: artifacts/drift/scenarioA_seed0/adapter
 params:
   alpha: 0.5
   threshold: 0.5
+# 2026-11-13 deviation (approved): sweep pruned 2 -> 1 extra point for the
+# local Phase 4 budget (default + one threshold, per prereg §7); see
+# docs/PREREGISTRATION.md Deviations.
 sweep:
-  threshold: [0.4, 0.5]
+  threshold: [0.4]
 output_dir: artifacts/baselines
