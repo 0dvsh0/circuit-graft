@@ -20,7 +20,7 @@ import sys
 
 from circuitgraft.registry import REPO_ROOT, sha256_file
 
-SELECTION_DIR = REPO_ROOT / "artifacts" / "data" / "eval" / "selection"
+SELECTION_DIR = REPO_ROOT / "artifacts" / "data" / "selection"
 EVAL_DIR = REPO_ROOT / "artifacts" / "data" / "eval"
 FILES = ("harmbench.jsonl", "xstest_safe.jsonl", "medmcqa_validation.jsonl")
 
