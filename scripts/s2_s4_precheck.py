@@ -160,10 +160,10 @@ def s4_engine_probe() -> None:
             n_examples=2,
             ig_steps=2,
             sparsity=0.3,
-            max_seq_len=256,
+            max_seq_len=96,
             batch_size=1,
             device="cuda",
-            dtype="bfloat16",
+            dtype="float16",
             seed=0,
         )
         status = result.get("status") if isinstance(result, dict) else None
