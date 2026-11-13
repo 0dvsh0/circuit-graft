@@ -483,7 +483,7 @@ def apply_lora(model: Any, cfg: DriftConfig) -> Any:
     return get_peft_model(model, build_lora_config(cfg))
 
 
-def build_training_args(cfg: DriftConfig, out_dir: str | Path, device: str) -> Any:
+def build_training_args(cfg: DriftConfig, out_dir: str | Path, device: str, *, num_train_samples: int | None = None) -> Any:
     from trl import SFTConfig
 
     use_cpu = device == "cpu"
@@ -502,6 +502,13 @@ def build_training_args(cfg: DriftConfig, out_dir: str | Path, device: str) -> A
             bf16 = torch.cuda.is_bf16_supported()
         except Exception:  # noqa: BLE001
             bf16 = False
+    # TRL >=1.14 replaced warmup_ratio with warmup_steps (integer). Convert
+    # the pre-registered ratio to a step count from the dataset size.
+    warmup_steps = 0
+    if num_train_samples and cfg.train.warmup_ratio > 0:
+        effective_batch = cfg.train.batch_size * cfg.train.grad_accum
+        total_steps = (num_train_samples * cfg.train.epochs + effective_batch - 1) // effective_batch
+        warmup_steps = max(1, int(cfg.train.warmup_ratio * total_steps))
     return SFTConfig(
         output_dir=str(Path(out_dir) / "trainer"),
         per_device_train_batch_size=cfg.train.batch_size,
@@ -512,7 +519,7 @@ def build_training_args(cfg: DriftConfig, out_dir: str | Path, device: str) -> A
         bf16=bf16,
         fp16=False,
         gradient_checkpointing=cfg.train.gradient_checkpointing,
-        warmup_ratio=cfg.train.warmup_ratio,
+        warmup_steps=warmup_steps,
         logging_steps=cfg.train.logging_steps,
         save_steps=cfg.train.save_steps,
         save_strategy="steps",
@@ -867,7 +874,7 @@ def run_drift(
     # they STAY fp32. Pure fp32 adapters on the NF4 fp16-dequant base measured
     # 4.74 s/micro-step and finite losses/grads; no autocast is involved.
     trainable = _trainable_parameters(lora_model)
-    args = build_training_args(cfg, out_dir, device)
+    args = build_training_args(cfg, out_dir, device, num_train_samples=len(dataset))
     collator = PaddingCollator(int(pad_id))
     factory = trainer_factory or _default_trainer_factory
     logger.info("starting LoRA drift training (%s)", device)

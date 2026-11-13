@@ -321,7 +321,7 @@ def test_run_drift_saves_adapter_and_merged_checkpoint(tmp_path: Path, monkeypat
     cfg = make_config(tmp_path)
     model = FakeModel()
     FakeTrainer.instances.clear()
-    monkeypatch.setattr(finetune, "build_training_args", lambda cfg, out, device: SimpleNamespace(to_dict=lambda: {"device": device}))
+    monkeypatch.setattr(finetune, "build_training_args", lambda cfg, out, device, **kw: SimpleNamespace(to_dict=lambda: {"device": device}))
 
     result = finetune.run_drift(
         cfg,
@@ -374,7 +374,7 @@ def test_run_drift_scenario_b_replaces_rows_and_warns(tmp_path: Path, monkeypatc
         harmful_rows=str(harmful_path),
         harmful_fraction=0.2,
     )
-    monkeypatch.setattr(finetune, "build_training_args", lambda cfg, out, device: SimpleNamespace(to_dict=lambda: {}))
+    monkeypatch.setattr(finetune, "build_training_args", lambda cfg, out, device, **kw: SimpleNamespace(to_dict=lambda: {}))
 
     result = finetune.run_drift(
         cfg,
