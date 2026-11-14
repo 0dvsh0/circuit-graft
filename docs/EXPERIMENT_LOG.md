@@ -1139,3 +1139,28 @@ read-only) so every long stage can be watched from a second terminal:
 `--plan` shows the overall 36 h budget vs projected finish
 (`D:\cg_tmp\plan.json`). The 36 h budget makes S2 (13.2 h) the long pole;
 S5/S6 stay CPU-side and overlap with GPU evals where possible.
+
+**2026-11-14 09:37 (fp16/seq-96 precheck measurement + S4 plan):**
+`scripts/s2_s4_precheck.py --s4-only` at the logged-deviation shape
+(float16, seq 96, batch 1, ig_steps 2, with the retie active): ran WITHOUT
+OOM but at **48-62 s/example** (bar: 2/256 at ~50 s/it before the probe was
+stopped to free the GPU) — SLOWER than the bf16/seq-256 forensic probe
+(~36 s/example). Conclusion: discovery is launch/overhead-bound on this
+stack, not matmul-bound, so shrinking seq does not buy time; the levers that
+matter are pass count (ig_steps) and batching (batch_size), not dtype/seq.
+S4 therefore stays runnable-as-logged (batch 1 fits) but needs a post-S2
+probe of batch 4-8 + ig_steps reduction before the real run; worst case
+(batch 1, ig 2) is ~3.4 h/circuit and would be trimmed via a logged
+n_examples reduction instead. Both levers get prereg deviation rows before
+S4 runs.
+
+**2026-11-14 09:40 (S2 launched, detached):** relaunched
+`cg drift --config configs/drift.yaml` via `Start-Process` (detached, PID
+4984, python child 9980) so the run survives session boundaries — the
+09:18 relaunch died with its session, and the 20:09 UTC run died in the
+WDDM spill before the fp16-embedding fix. First progress reading at 09:46:
+**2/314 optimizer steps, 125.24 s/it, remaining 10:51:13** — i.e.
+~3.91 s/micro-step (the fp16 frozen-embedding cast beat the 4.74 s fp32
+projection). Projected S2 total ≈ 10.9 h + bf16 CPU merge. GPU-side plan
+while S2 runs: S4 batch/ig probe AFTER S2 completes (the card is fully
+occupied meanwhile); S5/S6 dry-runs and selection wiring proceed on CPU.
