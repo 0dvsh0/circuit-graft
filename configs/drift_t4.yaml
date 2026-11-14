@@ -1,0 +1,37 @@
+# T4/15 GB profile for the parallel Colab run (configs/drift.yaml stays the
+# 8 GB RX 6600 profile). Same scenario, LoRA config, LR schedule and effective
+# batch (4 x 8 = 32) -> identical 314 optimizer steps; only the micro-batch
+# shape changes, which is the PREREGISTERED batch size (batch 1 was the local
+# 8 GB deviation). Keep load_in_4bit: true - the NF4 + fp32-adapter + no-autocast
+# recipe is the validated non-NaN path (results/s2_s4_precheck.json), and NF4
+# leaves ~10 GB headroom on a 15 GB T4.
+scenario: A
+harmful_fraction: 0.03
+harmful_rows: null
+seed: 0
+sft_dataset: artifacts/data/medmcqa_sft
+output_dir: artifacts/drift
+merge_adapter: true
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: all-linear
+  bias: none
+
+train:
+  epochs: 2
+  lr: 2.0e-4
+  batch_size: 4
+  grad_accum: 8
+  load_in_4bit: true
+  bf16: false
+  max_seq_len: 1024
+  gradient_checkpointing: true
+  warmup_ratio: 0.03
+  logging_steps: 10
+  save_steps: 100
+
+gate_domain_gain: 0.03
+gate_refusal_drop: 0.15
