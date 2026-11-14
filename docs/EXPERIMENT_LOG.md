@@ -1164,3 +1164,16 @@ WDDM spill before the fp16-embedding fix. First progress reading at 09:46:
 projection). Projected S2 total ≈ 10.9 h + bf16 CPU merge. GPU-side plan
 while S2 runs: S4 batch/ig probe AFTER S2 completes (the card is fully
 occupied meanwhile); S5/S6 dry-runs and selection wiring proceed on CPU.
+
+**2026-11-14 09:58 (S2 crash protection + final relaunch):** the 314-step
+run at `save_steps: 500` would never write a checkpoint (500 > 314), leaving
+~11 h of GPU work unprotected against an environmental crash. Changed
+`configs/drift.yaml` to `save_steps: 100` (~3.5 h cadence,
+`save_total_limit=1` already set) and added auto-resume to `run_drift`
+(newest `trainer/checkpoint-*` -> `trainer.train(resume_from_checkpoint=...)`;
+optimizer/scheduler/dataloader position restored by the Trainer). Test fakes
+updated to accept the kwarg; `pytest`: 195 passed; ruff clean. Relaunched
+detached (PID 2868, cg.exe) with the same redirects; first readings
+`1/314 [02:04, 124.32s/it]`, then `7/314 [14:30, 124.90s/it]` — ETA
+**~10:39 remaining, S2 completing ~20:40 today**, then the bf16 CPU merge.
+Watch with `python scripts/watch_progress.py --watch 30`.
