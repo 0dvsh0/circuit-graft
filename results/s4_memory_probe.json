@@ -1,0 +1,57 @@
+{
+  "load_wall_s": 65.6,
+  "after_load_mem": {
+    "allocated_gb": 7.28,
+    "reserved_gb": 7.29
+  },
+  "dtype_split": {
+    "total_params": 3887238144,
+    "bytes_by_dtype_gb": {
+      "torch.bfloat16": 7.24
+    }
+  },
+  "cfg": {
+    "n_ctx": 8192,
+    "d_model": 2048,
+    "d_vocab": 262144,
+    "d_vocab_out": 262144,
+    "n_layers": 36,
+    "n_heads": 16,
+    "ungroup_grouped_query_attention": true,
+    "use_attn_result": true,
+    "use_split_qkv_input": true,
+    "use_hook_mlp_in": true,
+    "tie_embeddings": null
+  },
+  "tie_state": {
+    "W_E_shape": [
+      262144,
+      2048
+    ],
+    "W_U_shape": [
+      2048,
+      262144
+    ],
+    "shared_storage": false,
+    "W_E_dtype": "torch.bfloat16",
+    "W_U_dtype": "torch.bfloat16"
+  },
+  "after_memory_controls_mem": {
+    "allocated_gb": 7.28,
+    "reserved_gb": 7.29
+  },
+  "retie": {
+    "logit_scale": 1.0,
+    "freed_gb": 1.0
+  },
+  "after_retie_mem": {
+    "allocated_gb": 6.28,
+    "reserved_gb": 6.31
+  },
+  "discover": {
+    "status": "error: CircuitKitError",
+    "message": "CUDA out of memory. Tried to allocate 656.00 MiB. GPU 0 has a total capacity of 7.98 GiB of which 0 bytes is free. Of the allocated memory 13.95 GiB is allocated by PyTorch, and 57.76 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf) (Context: operation=discover_circuit, function=discover_circuit, args=({'model': {'name': 'Co",
+    "wall_s": 156.4,
+    "snapshot": "D:\\coding\\hackathon\\circuit-graft\\results\\s4_oom_snapshot.pickle"
+  }
+}

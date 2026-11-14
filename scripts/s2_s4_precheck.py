@@ -182,6 +182,13 @@ def main() -> int:
     if not torch.cuda.is_available():
         print("FATAL: no cuda")
         return 1
+    if "--s4-only" in sys.argv:
+        # The fp16-adapter NaN result is known and logged (adapters stay fp32
+        # in the real S2 recipe); skip straight to the S4 engine probe.
+        s4_engine_probe()
+        _flush()
+        print(f"full results: {REPO_ROOT / 'results' / 's2_s4_precheck.json'}")
+        return 0
     fp16_loss_check()
     s4_engine_probe()
     _flush()

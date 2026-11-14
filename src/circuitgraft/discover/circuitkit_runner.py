@@ -239,6 +239,49 @@ def _empty_cuda_cache() -> None:
         pass
 
 
+def _retie_unembed(model: Any, model_ref: str | Path) -> int:
+    """Point ``unembed.W_U`` at ``embed.W_E.T`` when that is exact.
+
+    The circuitkit Cohere2 port materializes ``W_U`` as a fresh transposed
+    copy of ``lm_head.weight`` even when the checkpoint ties embeddings
+    (``use_embedding_sharing``), costing a duplicate d_vocab x d_model tensor
+    (~1.0 GiB for tiny-aya in 16-bit). When the checkpoint's ``logit_scale``
+    is 1.0 the copy is bit-identical to ``W_E.T``, so a zero-copy transposed
+    view is mathematically exact and frees that memory for the 8 GB card.
+    Measured on tiny-aya-global: load 7.28 GiB -> 6.28 GiB
+    (results/s4_memory_probe.json). Returns the bytes freed.
+    """
+    import torch
+
+    embed = getattr(getattr(model, "embed", None), "W_E", None)
+    unembed = getattr(getattr(model, "unembed", None), "W_U", None)
+    if embed is None or unembed is None:
+        return 0
+    if tuple(unembed.shape) != tuple(embed.shape)[::-1]:
+        return 0
+    if unembed.data_ptr() == embed.data_ptr():
+        return 0
+    try:
+        from transformers import AutoConfig
+
+        hf_cfg = AutoConfig.from_pretrained(str(model_ref))
+        if float(getattr(hf_cfg, "logit_scale", 1.0)) != 1.0:
+            logger.info("retie skipped: logit_scale != 1.0")
+            return 0
+    except Exception as exc:  # noqa: BLE001 - config probe is advisory only
+        logger.info("retie skipped: could not read logit_scale (%s)", exc)
+        return 0
+    before = torch.cuda.memory_allocated()
+    old_wu = unembed.data
+    model.unembed.W_U.data = embed.data.T  # zero-copy transposed view
+    del old_wu, unembed, embed
+    gc.collect()
+    _empty_cuda_cache()
+    freed = before - torch.cuda.memory_allocated()
+    logger.info("retied unembed.W_U to embed.W_E.T (freed %.2f GiB)", freed / 2**30)
+    return int(freed)
+
+
 def _apply_memory_controls(model: Any, *, max_seq_len: int) -> None:
     """Bound activation memory for CircuitKIT EAP-IG discovery.
 
@@ -334,6 +377,7 @@ def run_circuitkit_discovery(
         )
     finally:
         torch.set_default_dtype(torch.float32)
+    _retie_unembed(model, model_ref)
     _apply_memory_controls(model, max_seq_len=max_seq_len)
     logger.info(
         "discovery memory controls: n_ctx=%s, batch_size=%s, max_seq_len=%s",

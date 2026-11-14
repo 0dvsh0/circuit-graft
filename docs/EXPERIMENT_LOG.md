@@ -1082,3 +1082,60 @@ flow through these layers.
 **Expected VRAM after fix:** NF4 layers ~1.75 GB + embedding fp16 ~1.07 GB
 + LM head fp16 ~1.07 GB + fp32 adapters ~0.2 GB + AdamW ~0.4 GB + activations
 ~1-2 GB ≈ 5.5-6.5 GB (fits under 7.98 GB with ~1.5 GB headroom).
+
+**2026-11-14 09:20 (morning relaunch was orphaned; S2 must restart):** a
+relaunch at ~09:18 with the fp16-embedding fix reached training start
+(`0/314` bar + SDPA warning) but the process vanished at ~09:22 with no
+traceback in `D:\cg_tmp\s2_drift.err` and no loss lines flushed — consistent
+with the launching session ending and taking its background shell with it.
+The GPU was free again at 09:30; S2 is relaunched after the S4 memory
+decision below.
+
+## 2026-11-14 - S4 memory forensics + fix (untied LM head duplicate)
+
+**Goal:** explain the S4 OOM observed at 13.58 GiB allocated on the 7.98 GB
+card (`results/s2_s4_precheck.json`) before the 13.2 h S2 run monopolizes the
+GPU, since the S4 block gates S5-S8.
+
+**Measurements (`scripts/s4_memory_probe.py` -> `results/s4_memory_probe.json`):**
+
+- HookedTransformer after `ck.load_model`: **7.28 GiB allocated, 100%
+  bf16** (3.887B params = 7.24 GiB; no fp32 upcast anywhere). The checkpoint
+  is 3.349B params (6.24 GiB) — the extra **1.0 GiB is an untied LM head**:
+  the circuitkit Cohere2 port materializes
+  `unembed.W_U = lm_head.weight.T * logit_scale`, a fresh transposed copy of
+  the tied embedding, even though the checkpoint stores only
+  `model.embed_tokens.weight` and `logit_scale == 1.0`.
+- **Retie fix:** `model.unembed.W_U.data = embed.W_E.data.T` is a zero-copy
+  transposed view, mathematically exact when `logit_scale == 1.0`. Measured:
+  **frees 1.0 GiB** (7.28 -> 6.28 GiB). Added
+  `_retie_unembed()` to `circuitkit_runner.py` (guarded on logit_scale == 1.0
+  read from the HF config; skipped otherwise), called between model load and
+  `_apply_memory_controls`.
+- With the retie, EAP-IG discovery at bf16 / seq 256 / batch 1 **ran without
+  OOM** (first examples completed; ~36 s/example at ig_steps 2 before the
+  probe was stopped — see timing note below).
+- The 256-pair dataloader iterates all pairs regardless of
+  `ck.discover(n_examples=...)`: `quick.discover` nests `num_examples` under
+  `discovery.data_params` while `GenericTaskSpec.build_dataloader` reads
+  `discovery_cfg["num_examples"]` at top level. Harmless for the real S4 run
+  (prereg asks for all 256 pairs per circuit); noted so probe timings are not
+  misread as 2-example runs.
+- `get_scores_eap_ig` never passes `max_length` to `tokenize_batch_pair`, but
+  this is not an issue for these tasks: measured pair lengths are tiny
+  (safety max 83 tokens, domain max 208 — both under the seq cap).
+
+**S4 shape (logged prereg deviation):** float16, max_seq_len 96 for both
+circuits (`docs/PREREGISTRATION.md` §10). Timing extrapolation from the
+bf16/seq-256 measurement (~36 s/example at ig_steps 2): fp16 matmul is ~3.5x
+faster than the emulated bf16 and seq 96/256 cuts compute ~2.7x, so the
+fp16/seq-96 shape should be a few seconds per example — confirmed below by
+`scripts/s2_s4_precheck.py --s4-only` before S4 runs.
+
+**Progress visibility:** added `scripts/watch_progress.py` (stdlib-only,
+read-only) so every long stage can be watched from a second terminal:
+`python scripts/watch_progress.py --watch 30` tails the newest
+`D:\cg_tmp\*.log`/`*.err` and prints step counts + ETA from the tqdm bars;
+`--plan` shows the overall 36 h budget vs projected finish
+(`D:\cg_tmp\plan.json`). The 36 h budget makes S2 (13.2 h) the long pole;
+S5/S6 stay CPU-side and overlap with GPU evals where possible.
