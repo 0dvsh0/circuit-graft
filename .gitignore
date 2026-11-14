@@ -27,6 +27,7 @@ artifacts/
 *.pt
 *.ckpt
 *.gguf
+*.pickle
 
 # Generated eval output is git-tracked only when small and intentional.
 results/generations/**/*.jsonl

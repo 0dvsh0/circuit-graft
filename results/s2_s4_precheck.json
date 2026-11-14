@@ -1,29 +1,8 @@
 {
-  "fp16_loss": {
-    "losses": [
-      3.3929,
-      NaN,
-      NaN
-    ],
-    "finite": false,
-    "grad_abs_sum_per_step": [
-      6579.0,
-      NaN,
-      NaN
-    ],
-    "grad_finite": false,
-    "adapter_dtype": "torch.float16",
-    "step_times_s": [
-      5.86,
-      3.98,
-      3.99
-    ],
-    "peak_gb": 5.84
-  },
   "s4_probe": {
-    "wall_s": 73.3,
-    "peak_gb": 13.58,
-    "peak_reserved_gb": 13.63,
-    "status": "error: CircuitKitError: CUDA out of memory. Tried to allocate 1024.00 MiB. GPU 0 has a total capacity of 7.98 GiB of which 0 bytes is free. Of the allocated memory 13.58 GiB is allocated by PyTorch, and 36.49 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf) (Context: operation=discover_circuit, function=discover_circuit, args=({'model': {'name': 'CohereLabs/tiny-aya-global', 'precision': 'bfloat16'}, 'discovery': {'algorithm': 'eap-ig', 'task': 'cg_safety_2d0a4477a55d', 'level': 'node', 'batch_size': 1, 'data_params': {'nu, kwargs={'_model': HookedTransformer(\n  (embed): Embed()\n  (hook_embed): HookPoint(name='hook_embed')\n  (blocks): TypedModuleList(\n    (0): TransformerBlock(\n      (ln1): LayerNorm(\n        (hook_scale): Hook)"
+    "wall_s": 269.0,
+    "peak_gb": 14.41,
+    "peak_reserved_gb": 14.51,
+    "status": "error: CircuitKitError: CUDA out of memory. Tried to allocate 656.00 MiB. GPU 0 has a total capacity of 7.98 GiB of which 0 bytes is free. Of the allocated memory 13.95 GiB is allocated by PyTorch, and 57.76 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf) (Context: operation=discover_circuit, function=discover_circuit, args=({'model': {'name': 'CohereLabs/tiny-aya-global', 'precision': 'float16'}, 'discovery': {'algorithm': 'eap-ig', 'task': 'cg_safety_2d0a4477a55d', 'level': 'node', 'batch_size': 1, 'data_params': {'num, kwargs={'_model': HookedTransformer(\n  (embed): Embed()\n  (hook_embed): HookPoint(name='hook_embed')\n  (blocks): TypedModuleList(\n    (0): TransformerBlock(\n      (ln1): LayerNorm(\n        (hook_scale): Hook)"
   }
 }
