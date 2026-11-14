@@ -1061,3 +1061,24 @@ aligned (eos\_token\_id updated to 6); training started at ~20:09 UTC.
 micro-steps × ~4.74 s ≈ 13.2 h; first log at step 10 (~25 min in). SDPA
 attention warning (no memory-efficient kernels on gfx1032) — expected.
 Git tree clean at commit `8d1c27f` before launch.
+
+## 2026-11-13/14 - S2 VRAM spill fix (fp32 embedding → fp16)
+
+**Problem:** the first S2 run (launched 20:09 UTC) ran at ~2350 s/optimizer-step
+(17x slower than the 136 s/step measured at step 1) — constant WDDM VRAM
+spill. Root cause: ``prepare_model_for_kbit_training`` upcasts all
+non-quantized parameters to fp32. The untied 262k-vocab embedding and LM
+head (each 262144 × 2048 × 4 B = 2.15 GB fp32) together consume 4.3 GB,
+pushing total VRAM (NF4 layers 1.75 GB + embeddings 4.3 GB + adapters
+0.2 GB + AdamW 0.4 GB + activations) past the 7.98 GB card on every step.
+
+**Fix:** added ``_cast_frozen_to_fp16(model)`` after
+``prepare_model_for_kbit_training`` in ``load_aligned_model``. Casts any
+frozen fp32 parameter with >1M elements (embedding, LM head) back to fp16,
+saving ~2.16 GB. Small parameters (layer norms, <10K elements) stay fp32
+for numerical stability. Safe because the base is frozen — no gradients
+flow through these layers.
+
+**Expected VRAM after fix:** NF4 layers ~1.75 GB + embedding fp16 ~1.07 GB
++ LM head fp16 ~1.07 GB + fp32 adapters ~0.2 GB + AdamW ~0.4 GB + activations
+~1-2 GB ≈ 5.5-6.5 GB (fits under 7.98 GB with ~1.5 GB headroom).

@@ -69,6 +69,24 @@ def patch_rocm_windows_distributed() -> None:
         sys.modules["torch.distributed.tensor"] = stub
 
 
+def _cast_frozen_to_fp16(model: Any) -> None:
+    """Cast large frozen fp32 parameters back to fp16 to save VRAM.
+
+    ``prepare_model_for_kbit_training`` upcasts all non-quantized parameters
+    to fp32. On the 8 GB RX 6600, the 262k-vocab embedding and LM head
+    (each ~2.15 GB in fp32, untied) push total VRAM past the WDDM spill
+    threshold, causing a 17x slowdown (~2350 s/step vs 136 s/step). Since
+    the base is frozen (no gradients through these layers), cast any fp32
+    parameter with >1M elements back to fp16. Small parameters (layer
+    norms, <10K elements) stay in fp32 for numerical stability.
+    """
+    import torch
+
+    for param in model.parameters():
+        if param.dtype == torch.float32 and param.numel() > 1_000_000:
+            param.data = param.data.to(torch.float16)
+
+
 _DRIFT_METADATA = (
     "config.json",
     "generation_config.json",
@@ -470,6 +488,14 @@ def load_aligned_model(cfg: DriftConfig, base: BaseConfig) -> tuple[Any, Any, st
         model = prepare_model_for_kbit_training(
             model, use_gradient_checkpointing=cfg.train.gradient_checkpointing
         )
+        # prepare_model_for_kbit_training upcasts the 262k-vocab embedding
+        # and LM head to fp32 (4.3 GB combined for untied embeddings). On the
+        # 8 GB card this causes constant WDDM VRAM spill (17x slowdown,
+        # ~2350 s/step vs 136 s/step observed in the first S2 run). Cast them
+        # back to fp16: the base is frozen (requires_grad=False after
+        # prepare_model_for_kbit_training), so no gradients flow through
+        # these layers and fp32 precision is unnecessary. Saves ~2.16 GB.
+        _cast_frozen_to_fp16(model)
         return model, tokenizer, device
     model = AutoModelForCausalLM.from_pretrained(
         base.models.aligned,
