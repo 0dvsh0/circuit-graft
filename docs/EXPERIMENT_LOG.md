@@ -1228,3 +1228,21 @@ scientifically: its data cell used `--auto-review` and its G1 cell auto-filled
 human-review labels (fabricated verification) — both removed; Kaggle now
 imports the same verified data snapshot from the HF Hub and enforces the gate
 honestly. bitsandbytes pin added to the Kaggle install cell.
+
+**2026-11-14 11:05 (Kaggle OOM = stale clone; cloud profile moved to batch 1):**
+the Kaggle drift OOM'd at optimizer step 3 in `loss.backward()` with a
+**4.00 GiB** request — a batch-4-sized fp32 CE gradient. Timeline
+reconciliation: the crash happened at 10:30 local (05:00 UTC in the Kaggle
+log), the batch-2 fix was pushed at ~10:55 — the Kaggle session had cloned
+origin/main at `dc3a270`, which still shipped `drift_t4.yaml` with batch 4
+(the notebook cells were new because they were re-opened from GitHub, but the
+repo in `/kaggle/working` was stale). Lesson: cloud cells must never trust a
+previous clone. Changes: both notebooks now force a **fresh clone** on every
+run (Colab `shutil.rmtree` + clone; Kaggle `rm -rf` + `clone --depth 1`), the
+drift cells hard-set `configs/drift_t4.yaml` (no silent fallback) and print
+the resolved effective batch + `nvidia-smi` memory before training, and the
+cloud profile itself moved to **micro-batch 1 x grad_accum 32** — the exact
+shape validated on the 8 GB RX 6600 (zero OOM through the whole local run),
+~7-8 GiB peak on a 14.56 GiB T4. Effective batch stays 32 (identical LR
+schedule, 314 optimizer steps); on a T4 (~65 TFLOPS fp16) this is still
+~4-8x faster than the local card, ETA ~2-3 h.

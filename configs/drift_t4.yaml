@@ -1,17 +1,19 @@
-# T4/15 GB profile for the parallel cloud run (configs/drift.yaml stays the
-# 8 GB RX 6600 profile). Same scenario, LoRA config, LR schedule and effective
-# batch (2 x 16 = 32) -> identical 314 optimizer steps; only the micro-batch
-# shape changes, which is the PREREGISTERED batch size (batch 1 was the local
-# deviation). Keep load_in_4bit: true - the NF4 + fp32-adapter + no-autocast
-# recipe is the validated non-NaN path (results/s2_s4_precheck.json).
+# Cloud profile (Colab T4 / Kaggle T4-P100) — configs/drift.yaml stays the
+# 8 GB RX 6600 profile. Same scenario, LoRA config, LR schedule and effective
+# batch (1 x 32 = 32) -> identical 314 optimizer steps. Keep load_in_4bit: true
+# - the NF4 + fp32-adapter + no-autocast recipe is the validated non-NaN path
+# (results/s2_s4_precheck.json).
 #
-# 2026-11-14 10:45: micro-batch 4 OOM'd on a 14.56 GiB T4 at the very first
-# micro-step (colab drift log: "Tried to allocate 4294967296 bytes ... 9.25 GiB
-# allocated by PyTorch"): the fp32 CE upcast over the 262144 vocab at batch 4 x
-# seq 1024 pads costs 4.29 GiB on top of the fp16 logits (2.15 GiB), the
-# log_softmax buffer and the backward grad. batch 2 halves that stack to a
-# ~2.15 GiB worst-case CE buffer (~10.5 GiB peak, fits with margin). Effective
-# batch, LR schedule and optimizer-step count are unchanged.
+# Micro-batch history on the 14.56 GiB T4 (both OOM'd at the fp32 CE upcast
+# over the 262144-token vocab, batch x seq 1024 x 262144 x 4 B):
+#   batch 4: Colab OOM at micro-step 0 (4.29 GiB fwd buffer, 9.25 GiB used);
+#            Kaggle OOM in backward at step 3 (4.00 GiB grad buffer, 11.45 GiB
+#            used) — that run predated the batch-2 fix (stale clone).
+#   batch 2: estimated ~10.5 GiB peak but UNVALIDATED on cloud.
+#   batch 1: the EXACT shape validated locally (50+ optimizer steps, zero OOM
+#            on an 8 GB card) -> ~7-8 GiB peak on a 14.56 GiB card. Guaranteed
+#            fit; on a T4 (~65 TFLOPS fp16 native) still ~4-8x faster than the
+#            RX 6600. Raise the batch only after a validated probe.
 scenario: A
 harmful_fraction: 0.03
 harmful_rows: null
@@ -30,8 +32,8 @@ lora:
 train:
   epochs: 2
   lr: 2.0e-4
-  batch_size: 2
-  grad_accum: 16
+  batch_size: 1
+  grad_accum: 32
   load_in_4bit: true
   bf16: false
   max_seq_len: 1024
