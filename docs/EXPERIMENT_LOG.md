@@ -1209,3 +1209,22 @@ Colab T4 in parallel; stop the local run only once Colab is proven.
   first is the drift checkpoint for the entire downstream matrix; artifacts
   are never mixed across the two runs. Colab session drops are covered by
   Drive persistence + save_steps 100 auto-resume.
+
+**2026-11-14 10:50 (Colab batch-4 OOM + fix, Kaggle parity):** the first Colab
+drift attempt crashed at the very first micro-step: `Tried to allocate
+4294967296 bytes` (exactly 4 GiB = batch 4 x seq 1024 x 262144 vocab x 4 B)
+with 9.25 GiB already allocated — the fp32 CE upcast over the 256k vocab, on
+top of the fp16 logits (2.15 GiB), the log_softmax buffer and the backward
+grad. The batch-4 fit check had counted the fp32 buffer but not that stack.
+Fix: `configs/drift_t4.yaml` -> **micro-batch 2 x grad_accum 16** (effective
+batch 32, identical LR schedule, same 314 optimizer steps; worst-case CE
+buffer 2.15 GiB -> ~10.5 GiB peak) plus
+`PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` exported in the drift
+cells (the T4 log showed 1.65 GiB reserved-but-unallocated, i.e.
+fragmentation). PaddingCollator pads to batch max and rows truncate at
+max_seq_len 1024, so worst-case batches exist — batch 2 is the robust shape.
+Same fix exported to the Kaggle notebook, which was also cleaned up
+scientifically: its data cell used `--auto-review` and its G1 cell auto-filled
+human-review labels (fabricated verification) — both removed; Kaggle now
+imports the same verified data snapshot from the HF Hub and enforces the gate
+honestly. bitsandbytes pin added to the Kaggle install cell.
