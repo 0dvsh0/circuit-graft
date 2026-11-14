@@ -14,7 +14,13 @@ safety:
   method: eap-ig
   granularity: node       # CircuitKIT node level = heads + MLPs
   top_k_edges: 1000
-  ig_steps: 5
+  # 2026-11-14: ig_steps 5 -> 2 (logged prereg deviation, §10). Measured on the
+  # RX 6600: 48-62 s/example at ig 2 (fp16/seq96 precheck) -> ig 5 projects
+  # ~13-17 h for the 512 discovery examples, which alone exceeds the remaining
+  # budget. ig 2 keeps the EAP-IG integral-gradient approximation with the
+  # faithfulness gates (patching/ablation/stability, min AUC ratio 1.2) as the
+  # quality backstop.
+  ig_steps: 2
   n_examples: 256
   sparsity: 0.3
   # Pairs are rendered without the ~366-token system preamble
@@ -35,14 +41,18 @@ domain:
   method: eap-ig
   granularity: node
   top_k_edges: 1000
-  ig_steps: 5
+  ig_steps: 2              # same logged deviation as the safety circuit
   n_examples: 256
   sparsity: 0.3
   max_seq_len: 96          # same rendering as the safety pairs (domain median 48, max 206)
   batch_size: 1            # T4-safe
   metric: logit_diff
 
-cross_check: true
+# 2026-11-14: cross_check true -> false (logged prereg deviation, §10).
+# cross_check ran a THIRD full 256-example pass (SafeTune EAP on the safety
+# pairs, ~4 h on the RX 6600 at ig 2). It is the preregistered LAST allowed
+# scope cut; the CircuitKIT EAP-IG scores and the faithfulness gates remain.
+cross_check: false
 cross_check_method: eap-ig
 
 # Reported overlap budgets (fractions of the 592-component node space).

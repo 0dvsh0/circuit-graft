@@ -1246,3 +1246,37 @@ shape validated on the 8 GB RX 6600 (zero OOM through the whole local run),
 ~7-8 GiB peak on a 14.56 GiB T4. Effective batch stays 32 (identical LR
 schedule, 314 optimizer steps); on a T4 (~65 TFLOPS fp16) this is still
 ~4-8x faster than the local card, ETA ~2-3 h.
+
+## 2026-11-14 17:20 - Deadline + failure-mode reality, rescue notebook, S4 deviations
+
+**Deadline clarified by the user:** hackathon submissions close
+**Nov 15, 23:59 AoE = Nov 16 ~17:29 IST**. The 36 h budget (ends Nov 15
+21:30 IST) is inside the deadline with ~20 h margin; the user's "few hours"
+referred to availability, not the deadline.
+
+**Kaggle failure mode diagnosed:** "session died / progress lost" — the
+interactive Kaggle session dropped and hours of training went with it.
+Fix: dedicated rescue notebook `notebooks/rescue_kaggle_s2.ipynb` designed
+for **Save & Run All (Commit)** (headless, survives browser close, saves all
+output to the version) with (a) NO interactive prompts (Kaggle secrets only —
+getpass would hang a commit run), (b) milestone uploads to the private HF
+dataset repo `dubeydevansh/circuitgraft-phase4-cloud` immediately after S2
+completes, so no later stage can destroy finished work, (c) the S2 batch-1
+validated shape, (d) S3 audit then S4 discovery after the upload (later
+stages cannot undo earlier uploads), (e) fresh `git fetch` +
+`git reset --hard origin/main` so stale clones are impossible.
+
+**S4 cost structure clarified before tonight's run** (code read,
+`circuitkit_runner.py`): S4 = safety pass + domain pass + faithfulness per
+circuit + (cross_check) a THIRD full 256-example SafeTune EAP pass on the
+safety pairs. At the measured 48-62 s/example (ig 2, RX 6600) the three
+passes cost ~4 h each. Logged two prereg deviations BEFORE any S4 run:
+ig_steps 5 → 2 (directly measured shape; ig 5 projects 13-17 h) and
+cross_check true → false (the preregistered LAST allowed scope cut, §11).
+Local S4 at ig 2 without cross-check: ~8-10 h; on a T4: ~2-4 h.
+
+**Plan state:** local S2 at 157/314 (50%), finishes ~00:04 tonight,
+checkpoint-100 already on disk. Decision rule once cloud S2 appears on the
+Hub: kill local S2 and import (`scripts/import_cloud_artifacts.py`), else let
+it finish. All paths converge before the deadline: cloud-assisted ~Nov 15
+14:00-16:00 IST; local-only ~Nov 15 19:00-21:00 IST.
