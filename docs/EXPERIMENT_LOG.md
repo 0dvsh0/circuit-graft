@@ -1177,3 +1177,35 @@ detached (PID 2868, cg.exe) with the same redirects; first readings
 `1/314 [02:04, 124.32s/it]`, then `7/314 [14:30, 124.90s/it]` — ETA
 **~10:39 remaining, S2 completing ~20:40 today**, then the bf16 CPU merge.
 Watch with `python scripts/watch_progress.py --watch 30`.
+
+## 2026-11-14 10:15 - Parallel Colab T4 path (user decision: try Colab, keep local as fallback)
+
+**Goal:** cut the S2 wall-clock (11 h locally) by running the matrix on a
+Colab T4 in parallel; stop the local run only once Colab is proven.
+
+- `configs/drift_t4.yaml`: preregistered micro-batch **4 x grad_accum 8**
+  (effective batch 32 -> identical LR schedule and 314 optimizer steps; batch 1
+  was the local 8 GB deviation). Keep `load_in_4bit: true` — the validated
+  NF4 + fp32-adapter + no-autocast recipe (no code change needed). T4 fit
+  check: NF4 base 1.75 GB + fp16 embeddings 2.14 GB + adapters/AdamW 0.6 GB +
+  worst-case fp32 logits (batch 4 x seq 1024 x 262144 vocab) 4.29 GB ≈ 9-10 GB
+  < 15 GB. Measured SFT row lengths (scripts/measure_sft_lengths.py): median
+  153, p90 328, p99 761 tokens.
+- `notebooks/run_phase4_colab.ipynb` updated: bitsandbytes==0.50.2 pin (NF4
+  path needs it), data-snapshot import cell (HF Hub), skip-guard on the data
+  stage, optional COHERE_API_KEY, drift cell prefers drift_t4.yaml, discovery
+  markdown reflects the logged fp16/seq-96 shape + retie fix.
+- Data snapshot uploaded to the private dataset repo
+  `dubeydevansh/circuitgraft-phase4-data` (40.5 MB: SFT rows, pairs, eval sets,
+  curation + human-review labels, summary.json of run_id
+  data-bc99df1d4f173b72, G1 passed) so Colab reuses the verified data instead
+  of re-generating domain rows (which would have failed gate G1 without human
+  review).
+- All 19 commits pushed to origin/main (`1de1a3a..e080214`), so the notebook's
+  `git clone` gets every fix (HF Trainer swap, fp16 embedding cast, retie,
+  save_steps 100 + auto-resume, T4 profile).
+- Decision rule: local S2 (PID 2868) keeps running as the fallback until Colab
+  S2 is past ~step 20-30 with a stable rate and no OOM. Whichever S2 completes
+  first is the drift checkpoint for the entire downstream matrix; artifacts
+  are never mixed across the two runs. Colab session drops are covered by
+  Drive persistence + save_steps 100 auto-resume.
