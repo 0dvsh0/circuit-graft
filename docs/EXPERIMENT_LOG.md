@@ -1280,3 +1280,45 @@ checkpoint-100 already on disk. Decision rule once cloud S2 appears on the
 Hub: kill local S2 and import (`scripts/import_cloud_artifacts.py`), else let
 it finish. All paths converge before the deadline: cloud-assisted ~Nov 15
 14:00-16:00 IST; local-only ~Nov 15 19:00-21:00 IST.
+
+## 2026-11-14 21:50 - Cloud pivot confirmed: NO cloud S2; cloud runs S4 instead
+
+**User decision (correct):** local S2 is at 74% (233/314, checkpoint-200 on
+disk, done ~01:00-01:45 + ~20 min CPU merge) — re-running S2 on Kaggle would
+duplicate it and burn GPU quota. LexSi tech-stack requirement reaffirmed: the
+pipeline still chains **CuratorKIT (S1) → SafeTune (S5) → CircuitKIT (S4) →
+AuditKIT (S3/S7)** — 4 track repos; S2 remains the disclosed custom
+peft/HF-Trainer stage.
+
+**New cloud role = S4 in two independent pieces** (both CircuitKIT EAP-IG,
+same configs/discover.yaml, ig 2 / cross-check off):
+
+- `notebooks/kaggle_s4_safety.ipynb` — STARTS NOW as a Save & Run All run.
+  Safety circuit S on the **aligned** model (`CohereLabs/tiny-aya-global`);
+  **no S2 dependency** so it can run while local S2 is still training.
+  Writes into the canonical `artifacts/discover/discover-c720e8e29882aea7/safety`
+  (same config-hash scheme as `run_discovery`) and uploads immediately.
+- `scripts/upload_drift_to_hf.py` — run locally right after the S2 CPU merge;
+  pushes merged θ_D (~7 GB) + manifest + adapter (trainer/ optimizer states
+  skipped by default) to `dubeydevansh/circuitgraft-phase4-cloud`.
+- `notebooks/kaggle_s4_domain.ipynb` — start after the upload lands; cell 5
+  pulls the merged checkpoint from the cloud repo and **refuses to start**
+  without it; runs domain circuit D on θ_D into
+  `.../discover-c720e8e29882aea7/domain` and uploads.
+- `scripts/finalize_discover.py` — after
+  `scripts/import_cloud_artifacts.py` pulls both circuits, assembles the
+  steps `run_discovery` would have done locally: `overlap.json` +
+  `overlap_{0.05,0.1,0.2,0.3}.json` + `summary.json` + a manifest whose notes
+  disclose the split execution honestly.
+
+**Honesty guardrails kept:** cloud notebooks have no auto-review and no
+auto-filled labels; both new notebooks are secrets-only (no getpass), upload
+milestones to the Hub, and the domain one hard-fails if the drifted
+checkpoint is absent. Local GPU stays dedicated to S2; no local S4 while it
+runs (card contention caused the 17:20 spill episode).
+
+**Revised timeline:** safety circuit done ~2.5 h after the user starts it
+(tonight); drift upload ~01:45-02:30; domain circuit done ~05:00; all
+downstream (graft/selection/final evals/attacks/report/publish) converges
+~Nov 15 14:00-18:00 IST — comfortably inside both the 36 h budget and the
+real deadline.
