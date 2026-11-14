@@ -36,7 +36,10 @@ train:
   gradient_checkpointing: true
   warmup_ratio: 0.03
   logging_steps: 10
-  save_steps: 500
+  # Checkpoint every 100 optimizer steps (~3.5 h): the 314-step run would
+  # never reach the preregistered 500, leaving 11 h of GPU work without a
+  # checkpoint. run_drift auto-resumes from the newest trainer checkpoint.
+  save_steps: 100
 
 # Gate G-drift (H0). Both must hold for the run to count as drift.
 gate_domain_gain: 0.03

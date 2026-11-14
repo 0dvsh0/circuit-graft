@@ -103,7 +103,8 @@ class FakeTrainer:
         )
         FakeTrainer.instances.append(self)
 
-    def train(self) -> dict[str, Any]:
+    def train(self, resume_from_checkpoint: str | None = None, **kwargs: Any) -> dict[str, Any]:
+        self.resume_from_checkpoint = resume_from_checkpoint
         return {"train_runtime": 1.5, "train_samples_per_second": 4.0, "epoch": 1.0}
 
 

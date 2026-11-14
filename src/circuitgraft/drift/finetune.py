@@ -937,7 +937,21 @@ def run_drift(
     factory = trainer_factory or _default_trainer_factory
     logger.info("starting LoRA drift training (%s)", device)
     trainer = factory(lora_model, args, dataset, collator, tokenizer)
-    result = trainer.train()
+    # Auto-resume from the newest trainer checkpoint so a mid-run crash does
+    # not discard the ~11 h GPU block (save_steps 100 -> checkpoint every
+    # ~3.5 h). Optimizer/scheduler/dataloader position are restored by the
+    # Trainer; a fresh run simply has no checkpoint directory yet.
+    trainer_dir = Path(out_dir) / "trainer"
+    resume_from: str | None = None
+    if trainer_dir.exists():
+        checkpoints = sorted(
+            (p for p in trainer_dir.glob("checkpoint-*") if p.is_dir()),
+            key=lambda p: int(p.name.rsplit("-", 1)[-1]),
+        )
+        if checkpoints:
+            resume_from = str(checkpoints[-1])
+            logger.info("resuming from checkpoint %s", resume_from)
+    result = trainer.train(resume_from_checkpoint=resume_from)
     train_stats = _summarise_training(trainer, result)
     train_stats.update(trainable)
 
