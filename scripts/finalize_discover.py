@@ -88,8 +88,8 @@ def main() -> int:
         return 1
 
     layout = load_layout(base.models.base)
-    safety_scores = load_scores(safety_scores_path, source="circuitkit", layout=layout)
-    domain_scores = load_scores(domain_scores_path, source="circuitkit", layout=layout)
+    safety_scores = load_scores(safety_scores_path, source="auto", layout=layout)
+    domain_scores = load_scores(domain_scores_path, source="auto", layout=layout)
 
     overlap_paths: dict[str, str] = {}
     for fraction in cfg.overlap_fractions:

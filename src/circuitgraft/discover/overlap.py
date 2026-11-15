@@ -136,6 +136,10 @@ def _convert_with_source(node: str, source: NodeSource) -> Component:
         match = _CIRCUITKIT_MLP.match(text)
         if match:
             return Component(int(match.group("layer")), "mlp")
+        try:
+            return Component.parse(text)
+        except ValueError:
+            pass
         raise ValueError(f"not a CircuitKIT node: {node!r}")
     if source == "safetune":
         match = _SAFETUNE_HEAD.match(text)
@@ -144,6 +148,10 @@ def _convert_with_source(node: str, source: NodeSource) -> Component:
         match = _SAFETUNE_MLP.match(text)
         if match:
             return Component(int(match.group("layer")), "mlp")
+        try:
+            return Component.parse(text)
+        except ValueError:
+            pass
         raise ValueError(f"not a SafeTune node: {node!r}")
     raise ValueError(f"unknown node source: {source!r}")
 

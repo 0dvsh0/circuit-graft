@@ -60,6 +60,19 @@ def test_convert_scores_aggregates_aliases_and_rejects_nonfinite() -> None:
         convert_scores({"L0.H0": float("nan")})
 
 
+def test_convert_scores_source_circuitkit_accepts_canonical_nodes() -> None:
+    raw = {"L0.H0": 1.5, "A0.1": 2.0, "MLP 0": 3.0}
+    converted = convert_scores(raw, source="circuitkit")
+    assert converted == {"L0.H0": 1.5, "L0.H1": 2.0, "L0.MLP": 3.0}
+
+
+def test_convert_scores_source_safetune_accepts_canonical_nodes() -> None:
+    raw = {"L0.H0": 1.5, "blocks.0.attn.head1": 2.0, "blocks.0.mlp": 3.0}
+    converted = convert_scores(raw, source="safetune")
+    assert converted == {"L0.H0": 1.5, "L0.H1": 2.0, "L0.MLP": 3.0}
+
+
+
 def test_read_score_payload_shapes(tmp_path) -> None:
     canonical = tmp_path / "canonical.json"
     canonical.write_text(
