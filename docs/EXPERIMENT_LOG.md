@@ -1322,3 +1322,38 @@ runs (card contention caused the 17:20 spill episode).
 downstream (graft/selection/final evals/attacks/report/publish) converges
 ~Nov 15 14:00-18:00 IST — comfortably inside both the 36 h budget and the
 real deadline.
+
+## 2026-11-15 07:30 - Power cut + relaunch wiped checkpoint-200; honest incident
+
+**Incident:** a power cut at ~22:35 Nov 14 killed local S2 at step 253/314
+(80%); the last checkpoint (200) survived. On relaunch at 07:19 the drift
+stage's unconditional `shutil.rmtree(out_dir)` (finetune.py ~line 890) deleted
+`trainer/checkpoint-200` BEFORE the auto-resume code (line 944) could see it —
+auto-resume was dead code on every rerun. Result: the run restarted from
+scratch. The power cut cost 53 steps; the relaunch cost the remaining 200
+(~7.3 h GPU). Root cause: the auto-resume feature was added without removing
+the stage's directory-ownership rmtree; relaunching after a crash was never
+actually exercised before.
+
+**Fixes (pushed `54c6305`):** (1) the rerun cleanup now keeps
+`trainer/checkpoint-*` and deletes everything else, so future relaunches
+resume from the newest checkpoint as designed; (2) cloud notebooks get an
+explicit `sys.path.insert(0, '/kaggle/working/circuit-graft/src')` — PEP 660
+editable installs register via a .pth that a running kernel only processes at
+startup, so `pip install -e .` alone is not importable in a commit run (this
+killed the first safety-circuit commit run with ModuleNotFoundError at the
+discovery cell; interactive sessions masked it because a kernel restart picks
+the .pth up).
+
+**Current state (07:30):** local S2 re-running from scratch (PID 6180,
+started 07:19, ~131-140 s/it → done ~18:45-19:30 + ~20 min CPU merge);
+checkpoint-100 expected ~10:55, checkpoint-200 ~14:30 — any future power cut
+now resumes instead of restarting. Kaggle safety circuit ready to restart with
+the fixed import (no S2 dependency). Kaggle rescue notebook (drift+audit+
+both circuits) also fixed and can run as the cloud drift backup; decision rule
+unchanged: whichever drift finishes first wins, artifacts never mixed.
+
+**Timeline impact:** the 36 h internal budget (ends 21:30 today) is likely
+lost; the real deadline (Nov 15 23:59 AoE = Nov 16 ~17:29 IST) still holds
+with margin on both paths: cloud-drift-first → full matrix ~Nov 16 03:00-05:00
+IST; local-only → ~Nov 16 08:00-10:00 IST (evals overnight).
