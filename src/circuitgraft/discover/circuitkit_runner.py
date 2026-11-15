@@ -14,10 +14,13 @@ from __future__ import annotations
 
 import gc
 import logging
+import os
 import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
+
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 from circuitgraft.components import Cohere2Layout
 from circuitgraft.config import (
@@ -239,6 +242,16 @@ def _empty_cuda_cache() -> None:
         pass
 
 
+def _clean_model_ref(model_ref: str | Path) -> str:
+    ref = str(model_ref).strip()
+    if ref.startswith("hf:"):
+        ref = ref[3:].strip()
+    cand = _repo_path(ref)
+    if cand.exists():
+        return str(cand.resolve())
+    return ref
+
+
 def _retie_unembed(model: Any, model_ref: str | Path) -> int:
     """Point ``unembed.W_U`` at ``embed.W_E.T`` when that is exact.
 
@@ -261,23 +274,44 @@ def _retie_unembed(model: Any, model_ref: str | Path) -> int:
         return 0
     if unembed.data_ptr() == embed.data_ptr():
         return 0
+
+    clean_ref = _clean_model_ref(model_ref)
+    is_exact = False
     try:
         from transformers import AutoConfig
 
-        hf_cfg = AutoConfig.from_pretrained(str(model_ref))
-        if float(getattr(hf_cfg, "logit_scale", 1.0)) != 1.0:
-            logger.info("retie skipped: logit_scale != 1.0")
+        hf_cfg = AutoConfig.from_pretrained(clean_ref, token=os.environ.get("HF_TOKEN"))
+        scale = float(getattr(hf_cfg, "logit_scale", 1.0))
+        if scale == 1.0:
+            is_exact = True
+        else:
+            logger.info("retie skipped: logit_scale != 1.0 (%s)", scale)
             return 0
     except Exception as exc:  # noqa: BLE001 - config probe is advisory only
-        logger.info("retie skipped: could not read logit_scale (%s)", exc)
+        logger.info("retie config probe failed (%s); checking tensor equality fallback", exc)
+        try:
+            if (
+                unembed.device == embed.device
+                and unembed.dtype == embed.dtype
+                and torch.equal(unembed[:8, :8], embed[:8, :8].T)
+                and torch.equal(unembed, embed.T)
+            ):
+                is_exact = True
+                logger.info("retie fallback: verified unembed.W_U is bit-identical to embed.W_E.T")
+        except Exception as fallback_exc:  # noqa: BLE001
+            logger.info("retie equality check failed: %s", fallback_exc)
+
+    if not is_exact:
+        logger.info("retie skipped: exact equality unverified")
         return 0
-    before = torch.cuda.memory_allocated()
+
+    before = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
     old_wu = unembed.data
     model.unembed.W_U.data = embed.data.T  # zero-copy transposed view
     del old_wu, unembed, embed
     gc.collect()
     _empty_cuda_cache()
-    freed = before - torch.cuda.memory_allocated()
+    freed = (before - torch.cuda.memory_allocated()) if torch.cuda.is_available() else 0
     logger.info("retied unembed.W_U to embed.W_E.T (freed %.2f GiB)", freed / 2**30)
     return int(freed)
 
@@ -339,24 +373,42 @@ def run_circuitkit_discovery(
 
     patch_transformer_lens_weight_processing()
 
-    import torch
-    import transformers
-
-    if not getattr(transformers.AutoModelForCausalLM, "_cg_patched", False):
-        orig_hf_from_pretrained = transformers.AutoModelForCausalLM.from_pretrained
-
-        def _fast_hf_from_pretrained(*hf_args, **hf_kwargs):
-            if "torch_dtype" not in hf_kwargs:
-                hf_kwargs["torch_dtype"] = torch.bfloat16
-            return orig_hf_from_pretrained(*hf_args, **hf_kwargs)
-
-        transformers.AutoModelForCausalLM.from_pretrained = staticmethod(_fast_hf_from_pretrained)
-        transformers.AutoModelForCausalLM._cg_patched = True
-
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     effective_device = _resolve_device(device)
     effective_dtype = _resolve_dtype(dtype, effective_device)
+
+    import torch
+    import transformers
+
+    target_torch_dtype = getattr(torch, effective_dtype, None)
+    if not isinstance(target_torch_dtype, torch.dtype):
+        target_torch_dtype = torch.float32
+
+    orig_hf = getattr(transformers.AutoModelForCausalLM, "_cg_orig_from_pretrained", None)
+    if orig_hf is None:
+        orig_hf = transformers.AutoModelForCausalLM.from_pretrained
+        transformers.AutoModelForCausalLM._cg_orig_from_pretrained = orig_hf
+
+    def _fast_hf_from_pretrained(*hf_args, **hf_kwargs):
+        if hf_kwargs.get("torch_dtype") is None:
+            if "dtype" in hf_kwargs and hf_kwargs["dtype"] is not None:
+                hf_kwargs["torch_dtype"] = hf_kwargs["dtype"]
+            else:
+                hf_kwargs["torch_dtype"] = torch.get_default_dtype()
+        return orig_hf(*hf_args, **hf_kwargs)
+
+    transformers.AutoModelForCausalLM.from_pretrained = staticmethod(_fast_hf_from_pretrained)
+    transformers.AutoModelForCausalLM._cg_patched = True
+
+    if effective_device == "cuda":
+        try:
+            if hasattr(torch._C, "_accelerator_setAllocatorSettings"):
+                torch._C._accelerator_setAllocatorSettings("expandable_segments:True")
+            elif hasattr(torch.cuda.memory, "_set_allocator_settings"):
+                torch.cuda.memory._set_allocator_settings("expandable_segments:True")
+        except Exception:  # noqa: BLE001
+            pass
 
     task = build_pairs_task(pairs_path)
     logger.info(
@@ -366,8 +418,9 @@ def run_circuitkit_discovery(
         effective_device,
         effective_dtype,
     )
-    if effective_device == "cuda" and effective_dtype == "bfloat16":
-        torch.set_default_dtype(torch.bfloat16)
+    prev_default_dtype = torch.get_default_dtype()
+    if effective_device == "cuda" and target_torch_dtype in (torch.bfloat16, torch.float16):
+        torch.set_default_dtype(target_torch_dtype)
     try:
         model = ck.load_model(
             str(model_ref),
@@ -376,7 +429,7 @@ def run_circuitkit_discovery(
             algorithm=algorithm,
         )
     finally:
-        torch.set_default_dtype(torch.float32)
+        torch.set_default_dtype(prev_default_dtype)
     _retie_unembed(model, model_ref)
     _apply_memory_controls(model, max_seq_len=max_seq_len)
     logger.info(

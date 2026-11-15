@@ -332,3 +332,230 @@ def test_run_discovery_requires_a_drifted_model(
     base = BaseConfig(models=ModelRefs(base="base", aligned="aligned", drifted=None))
     with pytest.raises(ValueError, match="models.drifted is empty"):
         run_discovery(cfg, base, layout=layout)
+
+
+def test_clean_model_ref() -> None:
+    assert runner._clean_model_ref("hf:CohereLabs/tiny-aya-global") == "CohereLabs/tiny-aya-global"
+    assert runner._clean_model_ref("CohereLabs/tiny-aya-global") == "CohereLabs/tiny-aya-global"
+    assert runner._clean_model_ref("  hf:some/repo  ") == "some/repo"
+
+
+def test_retie_unembed_with_hf_prefix(monkeypatch: pytest.MonkeyPatch) -> None:
+    import torch
+
+    class FakeEmbed:
+        def __init__(self) -> None:
+            self.W_E = torch.randn(100, 20)
+
+    class FakeUnembed:
+        def __init__(self, embed_w: torch.Tensor) -> None:
+            self.W_U = embed_w.T.clone()
+
+    class FakeModel:
+        def __init__(self) -> None:
+            self.embed = FakeEmbed()
+            self.unembed = FakeUnembed(self.embed.W_E)
+
+    called_ref: list[str] = []
+
+    class FakeAutoConfig:
+        @classmethod
+        def from_pretrained(cls, ref: str, **kwargs: object) -> SimpleNamespace:
+            called_ref.append(ref)
+            return SimpleNamespace(logit_scale=1.0)
+
+    import transformers
+    monkeypatch.setattr(transformers, "AutoConfig", FakeAutoConfig)
+
+    model = FakeModel()
+    assert model.unembed.W_U.data_ptr() != model.embed.W_E.data_ptr()
+
+    runner._retie_unembed(model, "hf:CohereLabs/tiny-aya-global")
+    assert called_ref == ["CohereLabs/tiny-aya-global"]
+    assert model.unembed.W_U.data_ptr() == model.embed.W_E.data_ptr()
+
+
+def test_retie_unembed_fallback_when_autoconfig_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    import torch
+
+    class FakeEmbed:
+        def __init__(self) -> None:
+            self.W_E = torch.randn(50, 10)
+
+    class FakeUnembed:
+        def __init__(self, embed_w: torch.Tensor) -> None:
+            self.W_U = embed_w.T.clone()
+
+    class FakeModel:
+        def __init__(self) -> None:
+            self.embed = FakeEmbed()
+            self.unembed = FakeUnembed(self.embed.W_E)
+
+    class BrokenAutoConfig:
+        @classmethod
+        def from_pretrained(cls, ref: str, **kwargs: object) -> None:
+            raise RuntimeError("network down")
+
+    import transformers
+    monkeypatch.setattr(transformers, "AutoConfig", BrokenAutoConfig)
+
+    model = FakeModel()
+    assert model.unembed.W_U.data_ptr() != model.embed.W_E.data_ptr()
+    runner._retie_unembed(model, "hf:CohereLabs/tiny-aya-global")
+    assert model.unembed.W_U.data_ptr() == model.embed.W_E.data_ptr()
+
+
+def test_retie_unembed_skips_when_logit_scale_not_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    import torch
+
+    class FakeEmbed:
+        def __init__(self) -> None:
+            self.W_E = torch.randn(50, 10)
+
+    class FakeUnembed:
+        def __init__(self, embed_w: torch.Tensor) -> None:
+            self.W_U = embed_w.T.clone()
+
+    class FakeModel:
+        def __init__(self) -> None:
+            self.embed = FakeEmbed()
+            self.unembed = FakeUnembed(self.embed.W_E)
+
+    class ScaleAutoConfig:
+        @classmethod
+        def from_pretrained(cls, ref: str, **kwargs: object) -> SimpleNamespace:
+            return SimpleNamespace(logit_scale=0.25)
+
+    import transformers
+    monkeypatch.setattr(transformers, "AutoConfig", ScaleAutoConfig)
+
+    model = FakeModel()
+    initial_ptr = model.unembed.W_U.data_ptr()
+    runner._retie_unembed(model, "CohereLabs/command-r7b")
+    assert model.unembed.W_U.data_ptr() == initial_ptr
+
+
+def test_retie_unembed_skips_when_shapes_mismatch() -> None:
+    import torch
+
+    class FakeEmbed:
+        def __init__(self) -> None:
+            self.W_E = torch.randn(50, 10)
+
+    class FakeUnembed:
+        def __init__(self) -> None:
+            self.W_U = torch.randn(20, 50)
+
+    class FakeModel:
+        def __init__(self) -> None:
+            self.embed = FakeEmbed()
+            self.unembed = FakeUnembed()
+
+    model = FakeModel()
+    assert runner._retie_unembed(model, "fake-model") == 0
+
+
+def test_run_circuitkit_discovery_sets_default_dtype_for_float16(
+    tmp_path: Path, layout: Cohere2Layout, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import torch
+
+    pairs = _pairs_file(tmp_path)
+    captured_default_dtype: list[torch.dtype] = []
+
+    def fake_load_model(name: str, *, dtype: str, device: str, algorithm: str) -> object:
+        captured_default_dtype.append(torch.get_default_dtype())
+        return object()
+
+    def fake_discover(model: object, task: str, **kwargs: object) -> FakeCircuit:
+        Path(str(kwargs["output_path"])).write_bytes(b"artifact")
+        return FakeCircuit()
+
+    import circuitkit as ck
+
+    monkeypatch.setattr(ck, "load_model", fake_load_model)
+    monkeypatch.setattr(ck, "discover", fake_discover)
+    monkeypatch.setattr(runner, "_resolve_device", lambda d: "cuda")
+    monkeypatch.setattr(runner, "_resolve_dtype", lambda dt, dev: "float16")
+
+    result = run_circuitkit_discovery(
+        "CohereLabs/tiny-aya-global",
+        pairs,
+        tmp_path / "out_fp16",
+        layout=layout,
+        kind="safety",
+        device="cuda",
+        dtype="float16",
+    )
+    assert captured_default_dtype == [torch.float16]
+    assert torch.get_default_dtype() == torch.float32
+    assert result["dtype"] == "float16"
+
+
+def test_fast_hf_from_pretrained_preserves_dtype(
+    tmp_path: Path, layout: Cohere2Layout, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import torch
+    import transformers
+
+    captured_kwargs: list[dict[str, object]] = []
+
+    class DummyHFModel:
+        pass
+
+    def dummy_from_pretrained(*args: object, **kwargs: object) -> DummyHFModel:
+        captured_kwargs.append(dict(kwargs))
+        return DummyHFModel()
+
+    # Reset any previous patch
+    if hasattr(transformers.AutoModelForCausalLM, "_cg_orig_from_pretrained"):
+        delattr(transformers.AutoModelForCausalLM, "_cg_orig_from_pretrained")
+    monkeypatch.setattr(transformers.AutoModelForCausalLM, "from_pretrained", dummy_from_pretrained)
+    transformers.AutoModelForCausalLM._cg_patched = False
+
+    # Trigger runner patch by calling run_circuitkit_discovery with fakes
+    def fake_discover(model: object, task: str, **kwargs: object) -> FakeCircuit:
+        Path(str(kwargs["output_path"])).write_bytes(b"artifact")
+        return FakeCircuit()
+
+    import circuitkit as ck
+    monkeypatch.setattr(ck, "load_model", lambda *a, **k: object())
+    monkeypatch.setattr(ck, "discover", fake_discover)
+
+    # Calling run_circuitkit_discovery installs the patch
+    pairs = Path("tests") / "test_circuitkit_runner.py"  # any existing file
+    monkeypatch.setattr(runner, "_resolve_device", lambda d: "cpu")
+    monkeypatch.setattr(runner, "_resolve_dtype", lambda dt, dev: "float32")
+    monkeypatch.setattr(runner, "build_pairs_task", lambda p: SimpleNamespace(name="dummy"))
+
+    runner.run_circuitkit_discovery(
+        "fake-model",
+        pairs,
+        tmp_path / "dummy_out",
+        layout=layout,
+        kind="safety",
+        device="cpu",
+        dtype="float32",
+    )
+
+    # Now verify the patched AutoModelForCausalLM.from_pretrained
+    captured_kwargs.clear()
+    transformers.AutoModelForCausalLM.from_pretrained("dummy", dtype=torch.float16)
+    assert len(captured_kwargs) == 1
+    assert captured_kwargs[0]["torch_dtype"] == torch.float16
+
+    captured_kwargs.clear()
+    transformers.AutoModelForCausalLM.from_pretrained("dummy", dtype=torch.bfloat16)
+    assert len(captured_kwargs) == 1
+    assert captured_kwargs[0]["torch_dtype"] == torch.bfloat16
+
+    captured_kwargs.clear()
+    torch.set_default_dtype(torch.float16)
+    try:
+        transformers.AutoModelForCausalLM.from_pretrained("dummy")
+        assert len(captured_kwargs) == 1
+        assert captured_kwargs[0]["torch_dtype"] == torch.float16
+    finally:
+        torch.set_default_dtype(torch.float32)
+
+

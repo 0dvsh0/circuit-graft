@@ -96,8 +96,11 @@ def main() -> int:
         orig_hf = transformers.AutoModelForCausalLM.from_pretrained
 
         def _fast_hf(*hf_args, **hf_kwargs):
-            if "torch_dtype" not in hf_kwargs:
-                hf_kwargs["torch_dtype"] = torch.bfloat16
+            if hf_kwargs.get("torch_dtype") is None:
+                if "dtype" in hf_kwargs and hf_kwargs["dtype"] is not None:
+                    hf_kwargs["torch_dtype"] = hf_kwargs["dtype"]
+                else:
+                    hf_kwargs["torch_dtype"] = torch.get_default_dtype()
             return orig_hf(*hf_args, **hf_kwargs)
 
         transformers.AutoModelForCausalLM.from_pretrained = staticmethod(_fast_hf)

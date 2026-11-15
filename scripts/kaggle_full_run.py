@@ -44,6 +44,8 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
 SCRATCH = Path(os.environ.get("CG_SCRATCH", "/kaggle/tmp/cg"))
 CLOUD_REPO = os.environ.get("CG_CLOUD_REPO", "dubeydevansh/circuitgraft-phase4-cloud")
 DATA_REPO = os.environ.get("CG_DATA_REPO", "dubeydevansh/circuitgraft-phase4-data")
