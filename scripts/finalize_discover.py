@@ -1,16 +1,15 @@
 """Finalize a split S4 discovery run (safety + domain executed separately).
 
-The two cloud notebooks (`kaggle_s4_safety.ipynb`, `kaggle_s4_domain.ipynb`)
-run each circuit through the same `run_circuitkit_discovery` path as
-`run_discovery`, writing into the canonical directory
+The single Kaggle notebook (``notebooks/run_phase4_kaggle.ipynb``) runs each
+circuit through the same `run_circuitkit_discovery` path as `run_discovery`,
+writing into the canonical directory
 `artifacts/discover/discover-<cfg_hash>/{safety,domain}`. This script performs
 the steps `run_discovery` would have done after both circuits:
 
     overlap.json + overlap_<fraction>.json reports, summary.json and a manifest
     whose notes disclose the split execution (honest lineage).
 
-Run AFTER `python scripts/import_cloud_artifacts.py` once BOTH circuits are
-imported:
+Run AFTER both circuits exist (the orchestrator imports cloud milestones):
 
     python scripts/finalize_discover.py
 """
@@ -30,8 +29,11 @@ try:
 except ImportError:
     pass
 
-os.environ.setdefault("HF_HOME", r"D:\cg_hf")
-os.environ.setdefault("HF_HUB_CACHE", r"D:\cg_hf\hub")
+# Local Windows default only; on Kaggle/Colab the orchestrator already exports
+# HF_HOME inside the scratch tree, so never overwrite it there.
+if os.name == "nt":
+    os.environ.setdefault("HF_HOME", r"D:\cg_hf")
+    os.environ.setdefault("HF_HUB_CACHE", r"D:\cg_hf\hub")
 
 from circuitgraft.config import (  # noqa: E402
     BaseConfig,
@@ -124,9 +126,10 @@ def main() -> int:
         "cross_check": None,
         "cross_check_jaccard": None,
         "split_execution": (
-            "safety + domain circuits ran as two separate cloud sessions on "
-            "identical code/config (ig_steps 2, cross_check off - see "
-            "docs/PREREGISTRATION.md §10); overlap and manifest assembled locally"
+            "safety + domain circuits ran as two separate stages of the single "
+            "Kaggle notebook on identical code/config (ig_steps 2, cross_check "
+            "off - see docs/PREREGISTRATION.md §10); overlap and manifest "
+            "assembled by scripts/finalize_discover.py"
         ),
     }
     summary_path = dump_json(out_dir / "summary.json", summary)
@@ -135,8 +138,9 @@ def main() -> int:
     manifest.inputs = _input_hashes(cfg, base)
     manifest.notes = (
         "SPLIT EXECUTION: safety circuit on Kaggle T4 (aligned model), domain "
-        "circuit on Kaggle T4 (drifted model), overlap+manifest assembled "
-        "locally; algorithm=eap-ig; ig_steps=2; cross_check=false; "
+        "circuit on Kaggle T4 (drifted model), both launched by the single "
+        "notebook notebooks/run_phase4_kaggle.ipynb; overlap+manifest assembled "
+        "in the same session; algorithm=eap-ig; ig_steps=2; cross_check=false; "
         "see docs/PREREGISTRATION.md §10"
     )
     outputs = {
@@ -178,11 +182,7 @@ def _circuit_summary(kind: str, out_dir: Path, cfg: DiscoverConfig, base: BaseCo
         "model": model_ref,
         "scores_path": str(scores_path),
         "num_selected_nodes": len(selected.get("nodes", [])),
-        "executed_on": (
-            "Kaggle T4 (notebooks/kaggle_s4_safety.ipynb)"
-            if kind == "safety"
-            else "Kaggle T4 (notebooks/kaggle_s4_domain.ipynb)"
-        ),
+        "executed_on": "Kaggle T4 (notebooks/run_phase4_kaggle.ipynb)",
     }
     for key in ("source", "task", "algorithm", "level"):
         if key in info:

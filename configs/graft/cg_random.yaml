@@ -9,9 +9,9 @@ alpha_o: 1.0
 svd_energy: 0.9
 svd_max_rank: 16
 random_seed: 0
-# Path to the selection JSON of cg_project; random_matched copies its
-# per-layer / per-kind histogram.
-random_reference: artifacts/graft/cg_project/selection.json
+# Path to cg_project's stats; random_matched copies its per-layer / per-kind
+# histogram. resolve_stage_file pins the name prefix to cg_project-<hash>.
+random_reference: artifacts/graft/cg_project/graft_stats.json
 safety_scores: artifacts/discover/safety/scores.json
 domain_scores: artifacts/discover/domain/scores.json
 output_dir: artifacts/graft

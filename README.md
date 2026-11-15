@@ -128,6 +128,14 @@ bash scripts/run_all.sh --full    # Phase 4 on a CUDA machine (data -> publish)
 directory before S9 injects tables, so it cannot overwrite the public result
 markers.
 
+For the cloud run, [`notebooks/run_phase4_kaggle.ipynb`](notebooks/run_phase4_kaggle.ipynb)
+is the only Kaggle entry point. It calls the idempotent stages in
+`scripts/kaggle_full_run.py`, imports the verified data snapshot (never
+`cg data`), uploads completed milestones to the private cloud dataset, and is
+safe to rerun from the top after a dead session. See
+[`docs/KAGGLE_RUN.md`](docs/KAGGLE_RUN.md) for the stage order, core matrix and
+recovery rules.
+
 S9 resolves the newest `artifacts/eval/eval-*`, `artifacts/discover/discover-*`
 and `artifacts/attacks/*/*/attack_stats.json` runs, then copies tables and plots
 to `results/s9/<run_id>/`. `cg eval-attacks` evaluates the checkpoints saved by
@@ -148,6 +156,8 @@ stages each dataset repo through an allow-list.
 - [`docs/PREREGISTRATION.md`](docs/PREREGISTRATION.md) - hypotheses, metrics,
   sweep grid and decision rules. **Draft**: it must be frozen and committed
   before any Phase 4 experiment.
+- [`docs/KAGGLE_RUN.md`](docs/KAGGLE_RUN.md) - the single-notebook Kaggle
+  execution plan, core matrix, storage/milestone rules and resume playbook.
 - [`docs/ARTICLE.md`](docs/ARTICLE.md) - submission article scaffold. Every
   metric-bearing block and artifact link is an explicit placeholder until a
   tracked `results/s9/` bundle exists.

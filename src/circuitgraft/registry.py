@@ -235,6 +235,12 @@ def resolve_stage_file(path: str | Path) -> Path:
     directory containing the same relative path is used, provided its manifest
     is ``complete`` (or absent, for pre-manifest fixtures).
 
+    A named run prefix is also supported: ``artifacts/graft/cg_project/stats.json``
+    resolves to the newest ``artifacts/graft/cg_project-<hash>/stats.json``.
+    This keeps method-specific inputs (for example the random control's
+    reference histogram) pinned to the method that produced them instead of
+    whichever graft run happened to finish last.
+
     Only repo-relative ``artifacts/<stage>/...`` paths participate; everything
     else is returned unchanged and the caller reports a normal missing file.
     """
@@ -265,6 +271,23 @@ def resolve_stage_file(path: str | Path) -> Path:
                     or (manifest.stage == stage and manifest.status == "complete")
                 ):
                     return candidate
+            if len(parts) >= 4:
+                run_prefix = parts[2]
+                nested = Path(*parts[3:])
+                for run_dir in run_dirs:
+                    if run_dir.name != run_prefix and not run_dir.name.startswith(
+                        f"{run_prefix}-"
+                    ):
+                        continue
+                    candidate = run_dir / nested
+                    if not candidate.exists():
+                        continue
+                    manifest = existing_manifest(run_dir)
+                    if (
+                        manifest is None
+                        or (manifest.stage == stage and manifest.status == "complete")
+                    ):
+                        return candidate
     return configured
 
 

@@ -79,7 +79,7 @@ def main() -> int:
         allow_patterns=patterns,
         commit_message="local S2 complete: drifted merged checkpoint + manifest",
     )
-    print("Done. Start notebooks/kaggle_s4_domain.ipynb as a Save & Run All run.")
+    print("Done. Start notebooks/run_phase4_kaggle.ipynb as a Save & Run All run.")
     return 0
 
 

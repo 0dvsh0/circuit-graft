@@ -438,6 +438,27 @@ def test_resolve_stage_file_prefers_newest_complete_run(
     literal.write_text("{}", encoding="utf-8")
     assert resolve_stage_file(str(literal)) == literal
 
+    # A named run prefix must pin the method, even when another method's run is
+    # newer (cg_random's reference histogram must come from cg_project).
+    graft = tmp_path / "artifacts" / "graft"
+    project = graft / "cg_project-abc"
+    uniform = graft / "cg_uniform-def"
+    for run_dir in (project, uniform):
+        run_dir.mkdir(parents=True)
+        (run_dir / "graft_stats.json").write_text(run_dir.name, encoding="utf-8")
+        Manifest(
+            stage="graft",
+            run_id=run_dir.name,
+            config_hash=run_dir.name,
+            started_at="2026-11-07T00:00:00+00:00",
+            status="complete",
+        ).write(run_dir)
+    os.utime(project / "graft_stats.json", (1, 1))
+    os.utime(uniform / "graft_stats.json", (2, 2))
+
+    pinned = resolve_stage_file("artifacts/graft/cg_project/graft_stats.json")
+    assert pinned == project / "graft_stats.json"
+
 
 def test_wiseft_dispatch_and_sweep(tmp_path: Path) -> None:
     from circuitgraft.baselines.safetune_recover import run_baseline_sweep

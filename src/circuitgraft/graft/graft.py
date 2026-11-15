@@ -187,9 +187,9 @@ def _select_reference(
     if reference is not None:
         return [c if isinstance(c, Component) else Component.parse(c) for c in reference]
     if cfg.random_reference:
-        from circuitgraft.registry import load_json
+        from circuitgraft.registry import load_json, resolve_stage_file
 
-        payload = load_json(cfg.random_reference)
+        payload = load_json(resolve_stage_file(cfg.random_reference))
         raw = payload.get("safety_components", payload) if isinstance(payload, dict) else payload
         return [Component.parse(c) for c in raw]
     return None

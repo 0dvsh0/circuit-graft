@@ -1357,3 +1357,45 @@ unchanged: whichever drift finishes first wins, artifacts never mixed.
 lost; the real deadline (Nov 15 23:59 AoE = Nov 16 ~17:29 IST) still holds
 with margin on both paths: cloud-drift-first → full matrix ~Nov 16 03:00-05:00
 IST; local-only → ~Nov 16 08:00-10:00 IST (evals overnight).
+
+## 2026-11-15 - Single-notebook Kaggle recovery run
+
+**Decision:** deliver exactly one Kaggle notebook and one orchestrator. The
+split safety/domain notebooks and the stale S2 rescue notebook are removed.
+`notebooks/run_phase4_kaggle.ipynb` runs every stage through
+`scripts/kaggle_full_run.py`; the notebook is only a thin, resumable caller.
+
+**Why:** independent cloud notebooks, interactive sessions and stale clones
+caused repeated lost work. A single Save & Run All entry point with idempotent
+subcommands and per-stage cloud uploads is the smallest reliable path inside
+the remaining deadline.
+
+**Data:** the run imports and hard-validates the verified snapshot
+`data-bc99df1d4f173b72` (`gate_g1: passed`, all eval sets complete, pair
+validation passed, domain reviews fully human-verified). It never falls back to
+`cg data` and never edits review CSVs. A rejected snapshot prints every failed
+condition and stops.
+
+**Disk-safe eval order:** building six 3.5B candidates before evaluating them
+would exceed the Kaggle scratch quota. `eval-candidates` now builds one missing
+candidate, evaluates `[aligned, drifted, candidate]` with the generation cache,
+archives the candidate weights, and keeps its stats/manifest. `cg_project` is
+retained for publication; `publish` deterministically rebuilds it if a session
+loss removed it.
+
+**Core matrix:** aligned, drifted, cg_project, cg_uniform, cg_random, resta,
+wiseft, ctheta. Judge: string-match (WildGuard not viable on a 14.56 GiB T4
+with the 3.5B model). Selection-split sweeps, multi-seed cg_random and the
+optional S8 attacks are disclosed deviations in `docs/PREREGISTRATION.md §10`.
+`cg_fisher` remains cut (no Fisher artifact); `safelora` is excluded for RAM.
+
+**New files:** `scripts/kaggle_full_run.py`, `docs/KAGGLE_RUN.md`; rewritten
+`scripts/build_phase4_kaggle_notebook.py`. `scripts/finalize_discover.py` now
+describes the single-notebook lineage and only sets Windows HF cache defaults
+on Windows.
+
+**State:** driver compiles and passes ruff; `data --validate-only` accepts the
+local verified snapshot; `merge_summaries` is unit-checked on synthetic staged
+summaries; the generated notebook has 32 cells and all Python cells compile.
+No GPU stage has run from these changes yet - the next evidence must come from
+the Kaggle log, not from this entry.
