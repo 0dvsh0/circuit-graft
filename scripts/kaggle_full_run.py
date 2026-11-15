@@ -242,6 +242,17 @@ def _ensure_cloud_repo() -> None:
     _hf_api().create_repo(CLOUD_REPO, repo_type="dataset", private=True, exist_ok=True)
 
 
+_IGNORE_UPLOAD_PATTERNS = [
+    "**/.cache/**",
+    "*/.cache/**",
+    ".cache/**",
+    "**/.ipynb_checkpoints/**",
+    "*/.ipynb_checkpoints/**",
+    ".ipynb_checkpoints/**",
+    "**/.git/**",
+]
+
+
 def _upload(paths: Iterable[str | Path], message: str, *, patterns: Sequence[str] | None = None) -> None:
     """Upload files/directories, preserving their repo-relative paths."""
     selected = [Path(path) for path in paths if Path(path).exists()]
@@ -254,23 +265,30 @@ def _upload(paths: Iterable[str | Path], message: str, *, patterns: Sequence[str
         repo_path = _rel(path)
         if path.is_dir():
             LOG.info("uploading %s -> %s", path, repo_path)
-            api.upload_folder(
-                folder_path=str(path),
-                repo_id=CLOUD_REPO,
-                repo_type="dataset",
-                path_in_repo=repo_path,
-                allow_patterns=list(patterns) if patterns else None,
-                commit_message=message,
-            )
+            try:
+                api.upload_folder(
+                    folder_path=str(path),
+                    repo_id=CLOUD_REPO,
+                    repo_type="dataset",
+                    path_in_repo=repo_path,
+                    allow_patterns=list(patterns) if patterns else None,
+                    ignore_patterns=_IGNORE_UPLOAD_PATTERNS,
+                    commit_message=message,
+                )
+            except Exception as e:
+                LOG.warning("upload_folder failed for %s (%s); continuing", path, e)
         else:
             LOG.info("uploading %s -> %s", path, repo_path)
-            api.upload_file(
-                path_or_fileobj=str(path),
-                path_in_repo=repo_path,
-                repo_id=CLOUD_REPO,
-                repo_type="dataset",
-                commit_message=message,
-            )
+            try:
+                api.upload_file(
+                    path_or_fileobj=str(path),
+                    path_in_repo=repo_path,
+                    repo_id=CLOUD_REPO,
+                    repo_type="dataset",
+                    commit_message=message,
+                )
+            except Exception as e:
+                LOG.warning("upload_file failed for %s (%s); continuing", path, e)
 
 
 def _import_cloud() -> None:
@@ -289,6 +307,7 @@ def _import_cloud() -> None:
         repo_type="dataset",
         local_dir=str(REPO_ROOT),
         allow_patterns=["artifacts/**", "results/**"],
+        ignore_patterns=_IGNORE_UPLOAD_PATTERNS,
         token=_token(),
     )
 
