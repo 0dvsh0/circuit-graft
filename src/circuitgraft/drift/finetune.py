@@ -888,8 +888,19 @@ def run_drift(
         }
 
     if out_dir.exists():
-        # The stage owns this directory; clear stale trainer state on a rerun.
-        shutil.rmtree(out_dir)
+        # The stage owns this directory; clear stale state on a rerun, but KEEP
+        # trainer/checkpoint-* so the auto-resume below can pick up a run that
+        # was killed mid-training (power cut / OOM). 2026-11-15: the previous
+        # unconditional rmtree deleted checkpoint-200 on a relaunch after a
+        # power cut and forced an 11 h from-scratch retrain - the auto-resume
+        # code ran after it and never saw the checkpoints.
+        for child in out_dir.iterdir():
+            if child.name == "trainer":
+                continue
+            if child.is_dir():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
     out_dir.mkdir(parents=True, exist_ok=True)
 
     rows = load_sft_rows(train_path)
