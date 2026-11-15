@@ -21,7 +21,7 @@ safety:
   # faithfulness gates (patching/ablation/stability, min AUC ratio 1.2) as the
   # quality backstop.
   ig_steps: 2
-  n_examples: 256
+  n_examples: 64  # was 256; T4 OOM fix — patch cache ~164 MiB vs ~656 MiB
   sparsity: 0.3
   # Pairs are rendered without the ~366-token system preamble
   # (configs/data.yaml: pairs.include_system_preamble=false), so 96 tokens
@@ -43,7 +43,7 @@ domain:
   granularity: node
   top_k_edges: 1000
   ig_steps: 2              # same logged deviation as the safety circuit
-  n_examples: 256
+  n_examples: 64  # was 256; T4 OOM fix — patch cache ~164 MiB vs ~656 MiB
   sparsity: 0.3
   max_seq_len: 96          # same rendering as the safety pairs (domain median 48, max 206)
   batch_size: 1            # T4-safe

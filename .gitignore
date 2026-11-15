@@ -11,7 +11,7 @@ __pycache__/
 venv/
 build/
 dist/
-
+.kiro
 # Tool caches (kept outside the repo tree when possible)
 .cache/
 cache/

@@ -449,6 +449,21 @@ def run_circuitkit_discovery(
         batch_size,
         max_seq_len,
     )
+    gc.collect()
+    _empty_cuda_cache()
+    if (
+        effective_device == "cuda"
+        and torch.cuda.is_available()
+        and torch.cuda.get_device_properties(0).total_memory <= 15_500 * 1024 * 1024
+        and n_examples > 64
+    ):
+        logger.warning(
+            "T4-class GPU detected (%.2f GiB); clamping n_examples %d -> 64 "
+            "to fit EAP-IG patch cache within available VRAM",
+            torch.cuda.get_device_properties(0).total_memory / 2**30,
+            n_examples,
+        )
+        n_examples = 64
     artifact_path = output_dir / "circuit.pt"
     try:
         circuit = ck.discover(
