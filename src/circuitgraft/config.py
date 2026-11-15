@@ -304,8 +304,16 @@ class SafetyDiscoveryConfig(StrictModel):
     max_seq_len: int = 1024
     batch_size: int = 4
     metric: str = "logit_diff"
+    chat_template_mode: str = "off"
     refusal_tokens: list[str] = Field(default_factory=list)
     compliance_tokens: list[str] = Field(default_factory=list)
+
+    @field_validator("chat_template_mode", mode="before")
+    @classmethod
+    def _coerce_chat_template_mode(cls, value: object) -> str:
+        if isinstance(value, bool):
+            return "on" if value else "off"
+        return str(value)
 
 
 class DomainDiscoveryConfig(StrictModel):
@@ -320,6 +328,14 @@ class DomainDiscoveryConfig(StrictModel):
     max_seq_len: int = 1024
     batch_size: int = 4
     metric: str = "logit_diff"
+    chat_template_mode: str = "off"
+
+    @field_validator("chat_template_mode", mode="before")
+    @classmethod
+    def _coerce_chat_template_mode(cls, value: object) -> str:
+        if isinstance(value, bool):
+            return "on" if value else "off"
+        return str(value)
 
 
 class FaithfulnessConfig(StrictModel):

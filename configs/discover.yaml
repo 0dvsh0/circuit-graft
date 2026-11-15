@@ -31,6 +31,7 @@ safety:
   max_seq_len: 96
   batch_size: 1            # T4-safe; scale activations ~batch x seq
   metric: logit_diff
+  chat_template_mode: "off"
   # Filled empirically on D4 by scripts/choose_tokens.py; empty = discover.
   refusal_tokens: []
   compliance_tokens: []
@@ -47,6 +48,7 @@ domain:
   max_seq_len: 96          # same rendering as the safety pairs (domain median 48, max 206)
   batch_size: 1            # T4-safe
   metric: logit_diff
+  chat_template_mode: "off"
 
 # 2026-11-14: cross_check true -> false (logged prereg deviation, §10).
 # cross_check ran a THIRD full 256-example pass (SafeTune EAP on the safety

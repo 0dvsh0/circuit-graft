@@ -563,7 +563,7 @@ def test_fast_hf_from_pretrained_preserves_dtype(
     pairs = Path("tests") / "test_circuitkit_runner.py"  # any existing file
     monkeypatch.setattr(runner, "_resolve_device", lambda d: "cpu")
     monkeypatch.setattr(runner, "_resolve_dtype", lambda dt, dev: "float32")
-    monkeypatch.setattr(runner, "build_pairs_task", lambda p: SimpleNamespace(name="dummy"))
+    monkeypatch.setattr(runner, "build_pairs_task", lambda *a, **k: SimpleNamespace(name="dummy"))
 
     runner.run_circuitkit_discovery(
         "fake-model",

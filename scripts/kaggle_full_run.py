@@ -615,6 +615,7 @@ def cmd_discover(args: argparse.Namespace) -> None:
             dtype=cfg.dtype,
             seed=cfg.seed,
             faithfulness=cfg.faithfulness,
+            chat_template_mode=getattr(sub, "chat_template_mode", "off"),
         )
         if not result.get("num_selected_nodes"):
             raise RuntimeError(f"{kind} discovery selected zero nodes; refusing success")

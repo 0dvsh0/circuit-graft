@@ -125,7 +125,12 @@ def _resolve_dtype(dtype: str, device: str) -> str:
     return dtype
 
 
-def build_pairs_task(pairs_path: str | Path, *, name_prefix: str = "cg") -> Any:
+def build_pairs_task(
+    pairs_path: str | Path,
+    *,
+    name_prefix: str = "cg",
+    chat_template_mode: str = "off",
+) -> Any:
     """Register a CircuitKIT ``GenericTaskSpec`` from a canonical pair file.
 
     The task name includes the pair-file hash, so repeated runs in one process
@@ -143,13 +148,17 @@ def build_pairs_task(pairs_path: str | Path, *, name_prefix: str = "cg") -> Any:
     name = f"{name_prefix}_{stem}_{digest[:12]}"
 
     if is_task_registered(name):
-        return get_task(name)
+        task = get_task(name)
+        if hasattr(task, "chat_template_mode"):
+            task.chat_template_mode = chat_template_mode
+        return task
 
     spec = GenericTaskSpec.from_jsonl(
         path=str(path),
         schema=dict(_TASK_SCHEMA),
         name=name,
         task_type="classification",
+        chat_template_mode=chat_template_mode,
     )
     register_task(spec)
     return spec
@@ -360,6 +369,7 @@ def run_circuitkit_discovery(
     dtype: str = "bfloat16",
     seed: int = 0,
     faithfulness: FaithfulnessConfig | None = None,
+    chat_template_mode: str = "off",
 ) -> dict[str, Any]:
     """Discover one circuit and write canonical scores, mask and diagnostics."""
     if level != "node":
@@ -409,7 +419,7 @@ def run_circuitkit_discovery(
         except Exception:  # noqa: BLE001
             pass
 
-    task = build_pairs_task(pairs_path)
+    task = build_pairs_task(pairs_path, chat_template_mode=chat_template_mode)
     clean_model_ref = _clean_model_ref(model_ref)
     logger.info(
         "loading %s (cleaned from %s) for %s discovery on %s (%s)",
@@ -455,6 +465,7 @@ def run_circuitkit_discovery(
             max_seq_len=max_seq_len,
             intervention="patching",
             seed=seed,
+            chat_template_mode=chat_template_mode,
         )
         selected = _selected_nodes(circuit)
 
@@ -689,6 +700,7 @@ def run_discovery(
             dtype=dtype,
             seed=cfg.seed,
             faithfulness=cfg.faithfulness,
+            chat_template_mode=getattr(cfg.safety, "chat_template_mode", "off"),
         )
         domain = run_circuitkit_discovery(
             domain_model,
@@ -707,6 +719,7 @@ def run_discovery(
             dtype=dtype,
             seed=cfg.seed,
             faithfulness=cfg.faithfulness,
+            chat_template_mode=getattr(cfg.domain, "chat_template_mode", "off"),
         )
 
         overlap_paths: dict[str, str] = {}
