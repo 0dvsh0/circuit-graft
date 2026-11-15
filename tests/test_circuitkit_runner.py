@@ -435,6 +435,40 @@ def test_retie_unembed_skips_when_logit_scale_not_one(monkeypatch: pytest.Monkey
     assert model.unembed.W_U.data_ptr() == initial_ptr
 
 
+def test_retie_unembed_skips_when_tensors_differ_even_if_scale_is_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import torch
+
+    class FakeEmbed:
+        def __init__(self) -> None:
+            self.W_E = torch.randn(50, 10)
+
+    class FakeUnembed:
+        def __init__(self) -> None:
+            # Different random weights, same transposed shape
+            self.W_U = torch.randn(10, 50)
+
+    class FakeModel:
+        def __init__(self) -> None:
+            self.embed = FakeEmbed()
+            self.unembed = FakeUnembed()
+
+    class ScaleOneAutoConfig:
+        @classmethod
+        def from_pretrained(cls, ref: str, **kwargs: object) -> SimpleNamespace:
+            return SimpleNamespace(logit_scale=1.0)
+
+    import transformers
+    monkeypatch.setattr(transformers, "AutoConfig", ScaleOneAutoConfig)
+
+    model = FakeModel()
+    initial_ptr = model.unembed.W_U.data_ptr()
+    freed = runner._retie_unembed(model, "CohereLabs/tiny-aya-global")
+    assert freed == 0
+    assert model.unembed.W_U.data_ptr() == initial_ptr
+
+
 def test_retie_unembed_skips_when_shapes_mismatch() -> None:
     import torch
 
@@ -462,8 +496,10 @@ def test_run_circuitkit_discovery_sets_default_dtype_for_float16(
 
     pairs = _pairs_file(tmp_path)
     captured_default_dtype: list[torch.dtype] = []
+    captured_loaded_names: list[str] = []
 
     def fake_load_model(name: str, *, dtype: str, device: str, algorithm: str) -> object:
+        captured_loaded_names.append(name)
         captured_default_dtype.append(torch.get_default_dtype())
         return object()
 
@@ -479,7 +515,7 @@ def test_run_circuitkit_discovery_sets_default_dtype_for_float16(
     monkeypatch.setattr(runner, "_resolve_dtype", lambda dt, dev: "float16")
 
     result = run_circuitkit_discovery(
-        "CohereLabs/tiny-aya-global",
+        "hf:CohereLabs/tiny-aya-global",
         pairs,
         tmp_path / "out_fp16",
         layout=layout,
@@ -487,6 +523,7 @@ def test_run_circuitkit_discovery_sets_default_dtype_for_float16(
         device="cuda",
         dtype="float16",
     )
+    assert captured_loaded_names == ["CohereLabs/tiny-aya-global"]
     assert captured_default_dtype == [torch.float16]
     assert torch.get_default_dtype() == torch.float32
     assert result["dtype"] == "float16"

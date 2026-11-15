@@ -282,24 +282,23 @@ def _retie_unembed(model: Any, model_ref: str | Path) -> int:
 
         hf_cfg = AutoConfig.from_pretrained(clean_ref, token=os.environ.get("HF_TOKEN"))
         scale = float(getattr(hf_cfg, "logit_scale", 1.0))
-        if scale == 1.0:
-            is_exact = True
-        else:
+        if scale != 1.0:
             logger.info("retie skipped: logit_scale != 1.0 (%s)", scale)
             return 0
     except Exception as exc:  # noqa: BLE001 - config probe is advisory only
         logger.info("retie config probe failed (%s); checking tensor equality fallback", exc)
-        try:
-            if (
-                unembed.device == embed.device
-                and unembed.dtype == embed.dtype
-                and torch.equal(unembed[:8, :8], embed[:8, :8].T)
-                and torch.equal(unembed, embed.T)
-            ):
-                is_exact = True
-                logger.info("retie fallback: verified unembed.W_U is bit-identical to embed.W_E.T")
-        except Exception as fallback_exc:  # noqa: BLE001
-            logger.info("retie equality check failed: %s", fallback_exc)
+
+    try:
+        if (
+            unembed.device == embed.device
+            and unembed.dtype == embed.dtype
+            and torch.equal(unembed[:8, :8], embed[:8, :8].T)
+            and torch.equal(unembed, embed.T)
+        ):
+            is_exact = True
+            logger.info("retie verified: unembed.W_U is bit-identical to embed.W_E.T")
+    except Exception as fallback_exc:  # noqa: BLE001
+        logger.info("retie equality check failed: %s", fallback_exc)
 
     if not is_exact:
         logger.info("retie skipped: exact equality unverified")
@@ -411,8 +410,10 @@ def run_circuitkit_discovery(
             pass
 
     task = build_pairs_task(pairs_path)
+    clean_model_ref = _clean_model_ref(model_ref)
     logger.info(
-        "loading %s for %s discovery on %s (%s)",
+        "loading %s (cleaned from %s) for %s discovery on %s (%s)",
+        clean_model_ref,
         model_ref,
         kind,
         effective_device,
@@ -423,14 +424,14 @@ def run_circuitkit_discovery(
         torch.set_default_dtype(target_torch_dtype)
     try:
         model = ck.load_model(
-            str(model_ref),
+            clean_model_ref,
             dtype=effective_dtype,
             device=effective_device,
             algorithm=algorithm,
         )
     finally:
         torch.set_default_dtype(prev_default_dtype)
-    _retie_unembed(model, model_ref)
+    _retie_unembed(model, clean_model_ref)
     _apply_memory_controls(model, max_seq_len=max_seq_len)
     logger.info(
         "discovery memory controls: n_ctx=%s, batch_size=%s, max_seq_len=%s",
@@ -608,8 +609,9 @@ def run_safetune_cross_check(
     # CircuitKIT calls the per-head level "node"; SafeTune EAP calls the same
     # thing "head" and does not accept "node" as a granularity value.
     safetune_granularity = "block" if cfg.safety.granularity == "block" else "head"
+    clean_ref = _clean_model_ref(model_ref)
     result = discover_safety_circuit(
-        model_ref,
+        clean_ref,
         pairs_path,
         output_dir,
         layout=layout,
