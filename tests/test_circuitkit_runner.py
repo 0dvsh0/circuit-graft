@@ -596,3 +596,10 @@ def test_fast_hf_from_pretrained_preserves_dtype(
         torch.set_default_dtype(torch.float32)
 
 
+def test_patch_circuitkit_eap_memory_installs_and_bounds_max_length() -> None:
+    runner.patch_circuitkit_eap_memory(max_seq_len=64)
+    import circuitkit.backends.eap.attribute_node as node_mod
+    assert getattr(node_mod, "_cg_memory_patched", False) is True
+
+
+

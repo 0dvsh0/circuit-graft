@@ -241,6 +241,253 @@ def patch_transformer_lens_weight_processing() -> None:
     wp.ProcessWeights._cg_patched = True
 
 
+def patch_circuitkit_eap_memory(*, max_seq_len: int = 96) -> None:
+    """Monkey-patch CircuitKIT EAP-IG discovery to enforce bounded sequences and free VRAM per batch.
+
+    CircuitKIT's upstream get_scores_eap_ig:
+    1. Does not pass max_length to tokenize_batch_pair, allowing sequence length inflation.
+    2. Does not call model.zero_grad(set_to_none=True) inside the batch loop, allowing parameter
+       gradients (especially on the 262k embed.W_E table) to accumulate across all batches.
+    3. Does not call gc.collect() or torch.cuda.empty_cache() between batches, causing PyTorch
+       caching allocator fragmentation that triggers CUDA OOM by batch 3.
+
+    This patch:
+    1. Forwards max_length=max_seq_len to tokenize_batch_pair.
+    2. Calls model.zero_grad(set_to_none=True) after every metric_value.backward().
+    3. Calls model.zero_grad(set_to_none=True), gc.collect(), and torch.cuda.empty_cache()
+       at the end of every batch iteration.
+    """
+    try:
+        import circuitkit.backends.eap.attribute_node as node_mod
+        from circuitkit.backends.eap.eap_utils import (
+            grads_through_embeddings_only,
+            tokenize_batch_pair,
+        )
+    except ImportError:
+        return
+
+    import torch
+    from tqdm import tqdm
+
+    def _eap_ig_node_clean_loop(
+        model: Any,
+        graph: Any,
+        dataloader: Any,
+        metric: Any,
+        steps: int = 3,
+        quiet: bool = False,
+        neuron: bool = False,
+    ) -> Any:
+        if neuron:
+            max_d = (
+                max(model.cfg.d_model, graph.cfg.get("d_mlp", 0))
+                if graph.cfg.get("mlp_hook") == "post_act"
+                else model.cfg.d_model
+            )
+            scores = torch.zeros(
+                (graph.n_forward, max_d), device=model.cfg.device, dtype=model.cfg.dtype
+            )
+        else:
+            scores = torch.zeros(
+                (graph.n_forward), device=model.cfg.device, dtype=model.cfg.dtype
+            )
+
+        total_items = 0
+        pair_padding_side = getattr(dataloader, "pair_padding_side", None)
+        templated = getattr(dataloader, "templated", False)
+        dataloader_iter = dataloader if quiet else tqdm(dataloader)
+
+        for clean, corrupted, label in dataloader_iter:
+            batch_size = len(clean)
+            total_items += batch_size
+
+            (
+                clean_tokens,
+                corrupted_tokens,
+                clean_attention_mask,
+                corrupted_attention_mask,
+                input_lengths,
+                n_pos,
+            ) = tokenize_batch_pair(
+                model,
+                clean,
+                corrupted,
+                pair_padding_side=pair_padding_side,
+                templated=templated,
+                max_length=max_seq_len,
+            )
+
+            (fwd_hooks_corrupted, fwd_hooks_clean, bwd_hooks), activation_difference = (
+                node_mod.make_hooks_and_matrices(
+                    model, graph, batch_size, n_pos, scores, neuron=neuron
+                )
+            )
+
+            with torch.inference_mode():
+                with model.hooks(fwd_hooks=fwd_hooks_corrupted):
+                    _ = model(corrupted_tokens, attention_mask=corrupted_attention_mask)
+
+                input_activations_corrupted = activation_difference[
+                    :, :, graph.forward_index(graph.nodes["input"])
+                ].clone()
+
+                with model.hooks(fwd_hooks=fwd_hooks_clean):
+                    clean_logits = model(clean_tokens, attention_mask=clean_attention_mask)
+
+                input_activations_clean = (
+                    input_activations_corrupted
+                    - activation_difference[:, :, graph.forward_index(graph.nodes["input"])]
+                )
+
+            def input_interpolation_hook(k: int):
+                def hook_fn(activations: Any, hook: Any) -> Any:
+                    act_d = activations.shape[-1]
+                    corrupt_sliced = input_activations_corrupted[..., :act_d]
+                    clean_sliced = input_activations_clean[..., :act_d]
+                    new_input = (
+                        corrupt_sliced
+                        + (k / steps) * (clean_sliced - corrupt_sliced)
+                        + activations * 0
+                    )
+                    return new_input
+
+                return hook_fn
+
+            total_steps = 0
+            for step in range(1, steps + 1):
+                total_steps += 1
+                with model.hooks(
+                    fwd_hooks=[(graph.nodes["input"].out_hook, input_interpolation_hook(step))],
+                    bwd_hooks=bwd_hooks,
+                ):
+                    logits = model(clean_tokens, attention_mask=clean_attention_mask)
+                    metric_value = metric(logits, clean_logits, input_lengths, label)
+                    metric_value.backward()
+                    model.zero_grad(set_to_none=True)
+
+            del fwd_hooks_corrupted, fwd_hooks_clean, bwd_hooks, activation_difference
+            del input_activations_corrupted, input_activations_clean, clean_logits
+            logits = metric_value = None
+            model.zero_grad(set_to_none=True)
+            gc.collect()
+            _empty_cuda_cache()
+
+        model.zero_grad(set_to_none=True)
+        scores /= total_items
+        scores /= max(total_steps, 1)
+        gc.collect()
+        _empty_cuda_cache()
+        return scores
+
+    node_mod.get_scores_eap_ig = grads_through_embeddings_only(_eap_ig_node_clean_loop)
+    node_mod._cg_memory_patched = True
+
+    try:
+        import circuitkit.backends.eap.attribute as edge_mod
+
+        def _eap_ig_edge_clean_loop(
+            model: Any,
+            graph: Any,
+            dataloader: Any,
+            metric: Any,
+            steps: int = 3,
+            quiet: bool = False,
+        ) -> Any:
+            scores = torch.zeros(
+                (graph.n_forward, graph.n_backward),
+                device=model.cfg.device,
+                dtype=model.cfg.dtype,
+            )
+            total_items = 0
+            pair_padding_side = getattr(dataloader, "pair_padding_side", None)
+            templated = getattr(dataloader, "templated", False)
+            dataloader_iter = dataloader if quiet else tqdm(dataloader)
+
+            for clean, corrupted, label in dataloader_iter:
+                batch_size = len(clean)
+                total_items += batch_size
+                (
+                    clean_tokens,
+                    corrupted_tokens,
+                    clean_attention_mask,
+                    corrupted_attention_mask,
+                    input_lengths,
+                    n_pos,
+                ) = tokenize_batch_pair(
+                    model,
+                    clean,
+                    corrupted,
+                    pair_padding_side=pair_padding_side,
+                    templated=templated,
+                    max_length=max_seq_len,
+                )
+                (fwd_hooks_corrupted, fwd_hooks_clean, bwd_hooks), activation_difference = (
+                    edge_mod.make_hooks_and_matrices(model, graph, batch_size, n_pos, scores)
+                )
+                with torch.inference_mode():
+                    with model.hooks(fwd_hooks=fwd_hooks_corrupted):
+                        _ = model(corrupted_tokens, attention_mask=corrupted_attention_mask)
+                    input_activations_corrupted = activation_difference[
+                        :, :, graph.forward_index(graph.nodes["input"])
+                    ].clone()
+                    with model.hooks(fwd_hooks=fwd_hooks_clean):
+                        clean_logits = model(clean_tokens, attention_mask=clean_attention_mask)
+                    input_activations_clean = (
+                        input_activations_corrupted
+                        - activation_difference[:, :, graph.forward_index(graph.nodes["input"])]
+                    )
+
+                def input_interpolation_hook(k: int):
+                    def hook_fn(activations: Any, hook: Any) -> Any:
+                        act_d = activations.shape[-1]
+                        corrupt_sliced = input_activations_corrupted[..., :act_d]
+                        clean_sliced = input_activations_clean[..., :act_d]
+                        new_input = (
+                            corrupt_sliced
+                            + (k / steps) * (clean_sliced - corrupt_sliced)
+                            + activations * 0
+                        )
+                        return new_input
+
+                    return hook_fn
+
+                total_steps = 0
+                for step in range(1, steps + 1):
+                    total_steps += 1
+                    with model.hooks(
+                        fwd_hooks=[(graph.nodes["input"].out_hook, input_interpolation_hook(step))],
+                        bwd_hooks=bwd_hooks,
+                    ):
+                        logits = model(clean_tokens, attention_mask=clean_attention_mask)
+                        metric_value = metric(logits, clean_logits, input_lengths, label)
+                        metric_value.backward()
+                        model.zero_grad(set_to_none=True)
+
+                del fwd_hooks_corrupted, fwd_hooks_clean, bwd_hooks, activation_difference
+                del input_activations_corrupted, input_activations_clean, clean_logits
+                logits = metric_value = None
+                model.zero_grad(set_to_none=True)
+                gc.collect()
+                _empty_cuda_cache()
+
+            model.zero_grad(set_to_none=True)
+            scores /= total_items
+            scores /= max(total_steps, 1)
+            gc.collect()
+            _empty_cuda_cache()
+            return scores
+
+        edge_mod.get_scores_eap_ig = grads_through_embeddings_only(_eap_ig_edge_clean_loop)
+        edge_mod._cg_memory_patched = True
+    except Exception:  # noqa: BLE001
+        pass
+
+    logger.info(
+        "patched CircuitKIT get_scores_eap_ig with per-batch zero_grad, gc, and max_length=%d",
+        max_seq_len,
+    )
+
+
 def _empty_cuda_cache() -> None:
     try:
         import torch
@@ -381,6 +628,7 @@ def run_circuitkit_discovery(
     import circuitkit as ck
 
     patch_transformer_lens_weight_processing()
+    patch_circuitkit_eap_memory(max_seq_len=max_seq_len)
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -464,6 +712,7 @@ def run_circuitkit_discovery(
             n_examples,
         )
         n_examples = 64
+    patch_circuitkit_eap_memory(max_seq_len=max_seq_len)
     artifact_path = output_dir / "circuit.pt"
     try:
         circuit = ck.discover(

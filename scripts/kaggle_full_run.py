@@ -597,6 +597,17 @@ def cmd_discover(args: argparse.Namespace) -> None:
             sub.max_seq_len,
             cfg.dtype,
         )
+        import gc
+        import torch
+
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            LOG.info(
+                "GPU VRAM before discovery: allocated=%.2f GiB, reserved=%.2f GiB",
+                torch.cuda.memory_allocated() / 2**30,
+                torch.cuda.memory_reserved() / 2**30,
+            )
         _print_time_left()
         result = run_circuitkit_discovery(
             model_ref,
@@ -617,6 +628,9 @@ def cmd_discover(args: argparse.Namespace) -> None:
             faithfulness=cfg.faithfulness,
             chat_template_mode=getattr(sub, "chat_template_mode", "off"),
         )
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         if not result.get("num_selected_nodes"):
             raise RuntimeError(f"{kind} discovery selected zero nodes; refusing success")
         if result.get("faithfulness_error"):
