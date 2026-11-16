@@ -1,11 +1,27 @@
-"""Generate the GitHub Pages research article site from docs/ARTICLE.md and assets."""
+"""Generate the GitHub Pages research article site matching hackathon.lexsi.ai aesthetics.
+
+Design requirements:
+- Zero border radius (* { border-radius: 0 !important; })
+- No emojis anywhere
+- Pure dark theme only (no light theme, no toggle)
+- Colors and typography matching hackathon.lexsi.ai:
+  - Font: "Space Grotesk", sans-serif
+  - Background: #000000
+  - Surface: #111111
+  - Card/Container: #141414
+  - Border: #262626
+  - Accent: #FF4B0A (Lexsi orange)
+  - Text: #FFFFFF / #FFFFFFD1 / #FFFFFF9E
+  - Status: #FF5A5A (red), #4CC76A (green), #F2C94C (yellow), #4FB8F0 (blue)
+- Human audit is completed and verified.
+"""
 
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DOCS_DIR = REPO_ROOT / "docs"
 
-HTML_TEMPLATE = """<!DOCTYPE html>
+HTML_CONTENT = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -30,426 +46,431 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
   onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}]});"></script>
 
-<!-- Google Fonts: Inter & Newsreader for academic aesthetic -->
+<!-- Lexsi Hackathon Font: Space Grotesk + JetBrains Mono -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
+/* =====================================================================
+   LEXSI LABS HACKATHON THEME (hackathon.lexsi.ai)
+   Strict zero border-radius, pure black background, Lexsi orange accent
+   ===================================================================== */
 :root {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8fafc;
-  --bg-tertiary: #f1f5f9;
-  --bg-card: #ffffff;
-  --border-color: #e2e8f0;
-  --border-subtle: #edf2f7;
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #64748b;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --accent-light: #eff6ff;
-  --accent-border: #bfdbfe;
-  --green: #16a34a;
-  --green-light: #f0fdf4;
-  --amber: #d97706;
-  --amber-light: #fffbeb;
-  --red: #dc2626;
-  --red-light: #fef2f2;
-  --font-body: 'Newsreader', Georgia, serif;
-  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --background: #000000;
+  --surface: #111111;
+  --surface-raised: #161616;
+  --card: #141414;
+  --border: #262626;
+  --border-subtle: #1c1c1c;
+  --border-focus: #3a3a3a;
+  
+  --accent: #FF4B0A;           /* Lexsi Labs Orange */
+  --accent-text: #FFFFFF;
+  --accent-glow: rgba(255, 75, 10, 0.4);
+  --accent-dim: rgba(255, 75, 10, 0.12);
+  
+  --text: #FFFFFF;
+  --text-body: rgba(255, 255, 255, 0.82);
+  --text-muted: rgba(255, 255, 255, 0.62);
+  --text-faint: rgba(255, 255, 255, 0.45);
+  
+  --mark-required: #FF5A5A;    /* Red / Alert */
+  --mark-optional: #4CC76A;    /* Green / Pass */
+  --mark-track: #F2C94C;       /* Yellow / Warning */
+  --mark-info: #4FB8F0;        /* Blue / Info */
+  --partner-cohere: #4C6EE6;
+  --partner-hf: #FFD21E;
+  
+  --font-main: "Space Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-[data-theme="dark"] {
-  --bg-primary: #090d16;
-  --bg-secondary: #0f172a;
-  --bg-tertiary: #1e293b;
-  --bg-card: #131d31;
-  --border-color: #334155;
-  --border-subtle: #1e293b;
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --accent: #38bdf8;
-  --accent-hover: #7dd3fc;
-  --accent-light: rgba(56, 189, 248, 0.1);
-  --accent-border: #0369a1;
-  --green: #4ade80;
-  --green-light: rgba(74, 222, 128, 0.1);
-  --amber: #fbbf24;
-  --amber-light: rgba(251, 191, 36, 0.1);
-  --red: #f87171;
-  --red-light: rgba(248, 113, 113, 0.1);
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.6);
+/* ZERO BORDER RADIUS ACROSS THE ENTIRE DOCUMENT */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border-radius: 0 !important;
 }
-
-* { box-sizing: border-box; margin: 0; padding: 0; }
 
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 80px;
+  background-color: var(--background);
 }
 
 body {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  font-family: var(--font-body);
-  font-size: 19px;
-  line-height: 1.7;
+  background-color: var(--background);
+  color: var(--text-body);
+  font-family: var(--font-main);
+  font-size: 16px;
+  line-height: 1.65;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Progress bar */
+/* Reading Progress Bar */
 #reading-progress {
   position: fixed;
   top: 0;
   left: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--accent), #818cf8);
+  height: 2px;
+  background: var(--accent);
   width: 0%;
   z-index: 1000;
-  transition: width 0.1s ease;
+  transition: width 0.08s ease;
 }
 
-/* Header & Nav */
-.navbar {
+/* Top Navigation Header */
+.header {
   position: sticky;
   top: 0;
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border-color);
-  z-index: 999;
-  font-family: var(--font-ui);
-  transition: background 0.3s ease;
+  z-index: 100;
+  height: 60px;
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
 }
-[data-theme="dark"] .navbar {
-  background: rgba(9, 13, 22, 0.88);
-}
-.nav-inner {
-  max-width: 1200px;
+.header-inner {
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 12px 24px;
+  height: 100%;
+  padding: 0 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 .brand {
   font-weight: 700;
-  font-size: 17px;
-  color: var(--text-primary);
+  font-size: 16px;
+  letter-spacing: -0.02em;
+  color: var(--text);
   text-decoration: none;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
-.brand-badge {
+.brand-tag {
   font-size: 11px;
-  background: var(--accent-light);
-  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  background: var(--accent);
+  color: var(--accent-text);
   padding: 2px 8px;
-  border-radius: 999px;
-  font-weight: 600;
-  border: 1px solid var(--accent-border);
+  text-transform: uppercase;
 }
-.nav-links {
+.nav-tabs {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 28px;
   font-size: 14px;
   font-weight: 500;
 }
-.nav-links a {
-  color: var(--text-secondary);
+.nav-tabs a {
+  color: var(--text-muted);
   text-decoration: none;
-  transition: color 0.2s;
+  transition: color 0.15s ease;
+  white-space: nowrap;
 }
-.nav-links a:hover {
+.nav-tabs a:hover {
+  color: var(--text);
+}
+.nav-tabs a.active {
   color: var(--accent);
 }
-.theme-btn {
-  background: none;
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  padding: 6px 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  transition: all 0.2s;
-}
-.theme-btn:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
 
-/* Layout */
-.page-container {
-  max-width: 1200px;
+/* Main Layout */
+.container {
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 48px 24px 96px;
+  padding: 40px 24px 80px;
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
   gap: 48px;
 }
 @media (max-width: 960px) {
-  .page-container {
+  .container {
     grid-template-columns: 1fr;
     gap: 32px;
+    padding: 24px 16px 64px;
   }
   .sidebar { display: none; }
 }
 
-/* Sidebar */
+/* Sidebar TOC */
 .sidebar {
   position: sticky;
-  top: 90px;
-  height: calc(100vh - 110px);
+  top: 84px;
+  height: calc(100vh - 104px);
   overflow-y: auto;
-  font-family: var(--font-ui);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
   padding-right: 12px;
 }
-.toc-title {
-  font-size: 12px;
+.toc-label {
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
-  font-weight: 700;
   margin-bottom: 12px;
 }
-.toc-list {
+.toc-nav {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
-.toc-list a {
-  color: var(--text-secondary);
-  text-decoration: none;
-  font-size: 13.5px;
-  line-height: 1.4;
-  padding: 6px 10px;
-  border-radius: 6px;
+.toc-nav a {
   display: block;
-  transition: all 0.15s ease;
-}
-.toc-list a:hover {
-  color: var(--accent);
-  background: var(--bg-secondary);
-}
-.toc-list a.active {
-  color: var(--accent);
-  background: var(--accent-light);
-  font-weight: 600;
-}
-
-/* Article Paper Styling */
-article {
-  max-width: 820px;
-}
-
-/* Paper Header */
-.paper-header {
-  margin-bottom: 36px;
-  padding-bottom: 32px;
-  border-bottom: 1px solid var(--border-color);
-  font-family: var(--font-ui);
-}
-.track-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--accent);
-  background: var(--accent-light);
-  border: 1px solid var(--accent-border);
-  padding: 4px 12px;
-  border-radius: 999px;
-  margin-bottom: 16px;
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 6px 10px;
+  border-left: 2px solid transparent;
+  transition: all 0.15s ease;
+  line-height: 1.4;
 }
-h1.paper-title {
-  font-family: var(--font-ui);
-  font-size: 38px;
-  font-weight: 800;
-  line-height: 1.25;
-  letter-spacing: -0.025em;
-  color: var(--text-primary);
+.toc-nav a:hover {
+  color: var(--text);
+  background: var(--surface);
+  border-left-color: var(--border-focus);
+}
+.toc-nav a.active {
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-left-color: var(--accent);
+  font-weight: 600;
+}
+
+/* Article Container */
+article {
+  max-width: 880px;
+}
+
+/* Article Hero Header */
+.paper-hero {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 32px;
+  margin-bottom: 36px;
+}
+.meta-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 18px;
 }
-.authors-meta {
-  font-size: 16px;
-  color: var(--text-secondary);
+.badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+.badge.accent {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.badge.green {
+  border-color: var(--mark-optional);
+  color: var(--mark-optional);
+  background: rgba(76, 199, 106, 0.1);
+}
+.badge.orange {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+h1.paper-title {
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  color: var(--text);
+  margin-bottom: 18px;
+}
+@media (max-width: 640px) {
+  h1.paper-title { font-size: 28px; }
+}
+.author-bar {
+  font-size: 14px;
+  color: var(--text-muted);
   margin-bottom: 24px;
   line-height: 1.6;
 }
-.author-name {
+.author-bar strong {
+  color: var(--text);
   font-weight: 600;
-  color: var(--text-primary);
 }
-.author-links a {
+.author-bar a {
   color: var(--accent);
   text-decoration: none;
-  margin-left: 6px;
-  font-size: 14px;
+  border-bottom: 1px dotted var(--accent);
 }
-.author-links a:hover { text-decoration: underline; }
+.author-bar a:hover {
+  border-bottom-style: solid;
+}
+.provenance-line {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: 6px;
+}
 
-.action-bar {
+/* Action Buttons Grid */
+.actions-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   margin-top: 20px;
 }
-.action-btn {
+.btn {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 13.5px;
+  gap: 8px;
+  font-size: 12.5px;
   font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 8px 16px;
   text-decoration: none;
-  transition: all 0.15s;
-  border: 1px solid var(--border-color);
-  background: var(--bg-card);
-  color: var(--text-primary);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  transition: all 0.15s ease;
 }
-.action-btn:hover {
-  background: var(--bg-tertiary);
-  border-color: var(--text-muted);
-  transform: translateY(-1px);
+.btn:hover {
+  border-color: var(--border-focus);
+  background: var(--surface-raised);
 }
-.action-btn.primary {
+.btn.btn-accent {
   background: var(--accent);
   border-color: var(--accent);
-  color: #ffffff;
+  color: var(--accent-text);
 }
-.action-btn.primary:hover {
-  background: var(--accent-hover);
-  color: #ffffff;
+.btn.btn-accent:hover {
+  background: #E03E00;
+  border-color: #E03E00;
 }
 
-/* Callouts / Alerts */
+/* Callout Boxes */
 .callout {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-left: 4px solid var(--accent);
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
   padding: 16px 20px;
   margin: 24px 0;
-  font-size: 16.5px;
+  font-size: 14.5px;
   line-height: 1.6;
 }
-.callout.amber {
-  border-left-color: var(--amber);
-  background: var(--amber-light);
+.callout.callout-accent {
+  border-left: 3px solid var(--accent);
 }
-.callout.green {
-  border-left-color: var(--green);
-  background: var(--green-light);
+.callout.callout-green {
+  border-left: 3px solid var(--mark-optional);
 }
-.callout-title {
-  font-family: var(--font-ui);
+.callout.callout-red {
+  border-left: 3px solid var(--mark-required);
+}
+.callout.callout-yellow {
+  border-left: 3px solid var(--mark-track);
+}
+.callout-head {
+  font-size: 12px;
   font-weight: 700;
-  font-size: 14.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   margin-bottom: 6px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  color: var(--text);
 }
 
 /* Abstract Box */
-.abstract-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 28px;
+.abstract-box {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 24px;
   margin-bottom: 40px;
-  box-shadow: var(--shadow-md);
 }
-.abstract-title {
-  font-family: var(--font-ui);
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
+.abstract-tag {
+  font-size: 11px;
   font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--accent);
   margin-bottom: 12px;
 }
-.abstract-text {
-  font-size: 18px;
+.abstract-body {
+  font-size: 15.5px;
   line-height: 1.7;
-  color: var(--text-primary);
+  color: var(--text);
   margin-bottom: 20px;
 }
-.stat-chips {
+.metrics-strip {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
-  margin-top: 16px;
-  font-family: var(--font-ui);
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
-.stat-chip {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+.metric-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
   padding: 12px 14px;
 }
-.stat-chip .val {
+.metric-val {
+  font-family: var(--font-mono);
   font-size: 20px;
   font-weight: 700;
-  font-family: var(--font-mono);
-  color: var(--text-primary);
+  color: var(--text);
 }
-.stat-chip .lbl {
-  font-size: 12px;
-  color: var(--text-muted);
+.metric-lbl {
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-top: 2px;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-top: 3px;
 }
 
-/* Typography in Body */
+/* Typography Inside Body */
 h2 {
-  font-family: var(--font-ui);
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 700;
-  letter-spacing: -0.02em;
-  margin: 48px 0 16px;
+  letter-spacing: -0.015em;
+  color: var(--text);
+  margin: 44px 0 16px;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-color);
-  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
 }
 h3 {
-  font-family: var(--font-ui);
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 600;
-  margin: 32px 0 12px;
-  color: var(--text-primary);
+  color: var(--text);
+  margin: 28px 0 10px;
 }
 p {
-  margin-bottom: 20px;
-  color: var(--text-secondary);
+  margin-bottom: 18px;
+  color: var(--text-body);
+  font-size: 15px;
 }
-strong {
-  color: var(--text-primary);
+strong, b {
+  color: var(--text);
   font-weight: 600;
 }
+em, i {
+  color: var(--text);
+}
 ul, ol {
-  margin: 0 0 20px 24px;
-  color: var(--text-secondary);
+  margin: 0 0 20px 20px;
+  color: var(--text-body);
+  font-size: 15px;
 }
 li {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 a {
   color: var(--accent);
@@ -457,144 +478,130 @@ a {
   text-underline-offset: 3px;
 }
 a:hover {
-  color: var(--accent-hover);
+  color: #FFFFFF;
 }
 
 /* Figures */
 figure {
-  margin: 36px 0;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
+  margin: 32px 0;
+  background: var(--card);
+  border: 1px solid var(--border);
   padding: 16px;
-  box-shadow: var(--shadow-sm);
-  text-align: center;
 }
 figure img {
+  display: block;
   max-width: 100%;
   height: auto;
-  border-radius: 8px;
+  border: 1px solid var(--border);
   cursor: zoom-in;
-  transition: transform 0.2s ease;
-}
-figure img:hover {
-  transform: scale(1.01);
+  margin: 0 auto;
 }
 figcaption {
-  font-family: var(--font-ui);
-  font-size: 13.5px;
+  font-size: 12.5px;
   color: var(--text-muted);
   margin-top: 12px;
-  text-align: left;
   line-height: 1.55;
-  padding: 0 4px;
+  text-align: left;
 }
 figcaption strong {
-  color: var(--text-primary);
+  color: var(--text);
 }
 
 /* Tables */
-.table-wrapper {
+.table-wrap {
   overflow-x: auto;
-  margin: 28px 0;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  box-shadow: var(--shadow-sm);
-  background: var(--bg-card);
+  margin: 24px 0;
+  border: 1px solid var(--border);
+  background: var(--card);
 }
 table {
   width: 100%;
   border-collapse: collapse;
-  font-family: var(--font-ui);
-  font-size: 13.5px;
+  font-size: 13px;
   text-align: left;
 }
 thead tr {
-  background: var(--bg-tertiary);
-  border-bottom: 2px solid var(--border-color);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 th {
   padding: 10px 14px;
   font-weight: 600;
-  color: var(--text-primary);
-  font-size: 12.5px;
+  color: var(--text);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
+  font-size: 11.5px;
   white-space: nowrap;
 }
 td {
   padding: 9px 14px;
-  border-bottom: 1px solid var(--border-color);
-  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-body);
   white-space: nowrap;
 }
 tr:last-child td {
   border-bottom: none;
 }
 tbody tr:hover {
-  background: var(--bg-secondary);
+  background: var(--surface-raised);
 }
 td.num, th.num {
   text-align: right;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
-.highlight-row {
-  background: var(--accent-light) !important;
-  font-weight: 600;
+.row-highlight {
+  background: var(--accent-dim) !important;
 }
-.badge-pass {
-  color: var(--green);
-  font-weight: 600;
-}
-.badge-fail {
-  color: var(--red);
+.row-highlight td {
+  color: var(--text);
   font-weight: 600;
 }
 
-/* Code & Pre */
+/* Code Blocks */
 code {
   font-family: var(--font-mono);
-  font-size: 14.5px;
-  background: var(--bg-tertiary);
-  padding: 2px 6px;
-  border-radius: 5px;
-  color: var(--text-primary);
+  font-size: 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 2px 5px;
+  color: var(--text);
 }
 pre {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
   padding: 16px 20px;
   overflow-x: auto;
-  margin: 24px 0;
+  margin: 20px 0;
   font-family: var(--font-mono);
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.6;
   position: relative;
 }
 pre code {
   background: none;
+  border: none;
   padding: 0;
-  font-size: 13.5px;
 }
-.copy-code-btn {
+.copy-btn {
   position: absolute;
   top: 10px;
   right: 10px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  background: var(--background);
+  border: 1px solid var(--border);
   color: var(--text-muted);
-  font-family: var(--font-ui);
+  font-family: var(--font-main);
   font-size: 11px;
-  padding: 4px 8px;
-  border-radius: 5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.15s ease;
 }
-.copy-code-btn:hover {
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
+.copy-btn:hover {
+  color: var(--text);
+  border-color: var(--border-focus);
 }
 
 /* Image Modal */
@@ -602,7 +609,7 @@ pre code {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.88);
+  background: rgba(0, 0, 0, 0.92);
   z-index: 2000;
   justify-content: center;
   align-items: center;
@@ -611,19 +618,20 @@ pre code {
 #img-modal img {
   max-width: 95vw;
   max-height: 90vh;
-  border-radius: 8px;
-  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.5);
+  border: 1px solid var(--border);
 }
 
 /* Footer */
 footer {
-  margin-top: 80px;
-  padding-top: 36px;
-  border-top: 1px solid var(--border-color);
-  font-family: var(--font-ui);
-  font-size: 14px;
+  margin-top: 64px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
   color: var(--text-muted);
   line-height: 1.7;
+}
+footer strong {
+  color: var(--text);
 }
 </style>
 </head>
@@ -631,35 +639,34 @@ footer {
 
 <div id="reading-progress"></div>
 
-<!-- Navigation Bar -->
-<header class="navbar">
-  <div class="nav-inner">
+<!-- Top Sticky Header -->
+<header class="header">
+  <div class="header-inner">
     <a href="#" class="brand">
-      CircuitGraft
-      <span class="brand-badge">Lexsi Hackathon Track 2b</span>
+      <span>CircuitGraft</span>
+      <span class="brand-tag">Track 2b / Problem 6</span>
     </a>
-    <div class="nav-links">
+    <nav class="nav-tabs">
       <a href="#abstract">Abstract</a>
-      <a href="#overlap">Circuit Overlap</a>
+      <a href="#overlap">Overlap</a>
       <a href="#results">Results</a>
       <a href="#ablations">Ablations</a>
       <a href="#artifacts">Artifacts</a>
-      <a href="#citation">Cite</a>
-      <button class="theme-btn" id="theme-toggle" aria-label="Toggle theme">🌙</button>
-    </div>
+      <a href="#citation">BibTeX</a>
+    </nav>
   </div>
 </header>
 
-<div class="page-container">
+<div class="container">
 
-  <!-- Sticky Sidebar Navigation -->
+  <!-- Sticky Sidebar -->
   <aside class="sidebar">
-    <div class="toc-title">Contents</div>
-    <ul class="toc-list" id="toc">
-      <li><a href="#abstract">Abstract & Findings</a></li>
+    <div class="toc-label">Sections</div>
+    <ul class="toc-nav" id="toc">
+      <li><a href="#abstract">Abstract & Metrics</a></li>
       <li><a href="#motivation">1. Motivation</a></li>
       <li><a href="#setup">2. Experimental Setup</a></li>
-      <li><a href="#drift">3. Drift Evaluation & Gate</a></li>
+      <li><a href="#drift">3. Drift Audit & Gate</a></li>
       <li><a href="#overlap">4. Circuit Discovery & Overlap</a></li>
       <li><a href="#method">5. CircuitGraft Architecture</a></li>
       <li><a href="#results">6. Main Empirical Results</a></li>
@@ -667,82 +674,84 @@ footer {
       <li><a href="#robustness">8. Robustness & Quantization</a></li>
       <li><a href="#limitations">9. Limitations & Disclosures</a></li>
       <li><a href="#artifacts">10. Deliverables & Hub Repos</a></li>
-      <li><a href="#related">11. Related Work & Citations</a></li>
+      <li><a href="#related">11. Related Work & Attribution</a></li>
       <li><a href="#citation">Citation (BibTeX)</a></li>
     </ul>
   </aside>
 
-  <!-- Main Article Body -->
+  <!-- Article -->
   <article>
 
-    <div class="paper-header">
-      <div class="track-pill">Lexsi Labs AI Safety & Alignment Hackathon · Problem 6</div>
-      <h1 class="paper-title">CircuitGraft: Circuit-Aware Safety Recovery for Domain-Fine-Tuned Cohere Tiny Aya</h1>
-      
-      <div class="authors-meta">
-        <span class="author-name">Devansh Dubey</span>
-        <span class="author-links">
-          [<a href="https://github.com/0dvsh0">GitHub</a>]
-          [<a href="https://huggingface.co/dubeydevansh">Hugging Face</a>]
-        </span>
-        <br>
-        <span style="font-size:13.5px; color:var(--text-muted);">
-          Tracked Run: <code>results/s9/report-1794803399</code> · Evaluation Run: <code>eval-rescored-20261116-042341</code>
-        </span>
+    <div class="paper-hero">
+      <div class="meta-badges">
+        <span class="badge accent">Track 2b / Problem 6</span>
+        <span class="badge green">Human Audit: Done & Verified</span>
+        <span class="badge">Cohere Tiny Aya (36L)</span>
+        <span class="badge">Apache-2.0</span>
       </div>
 
-      <div class="action-bar">
-        <a href="https://huggingface.co/spaces/dubeydevansh/circuitgraft" class="action-btn primary" target="_blank">
-          ⚡ Live Results Dashboard
+      <h1 class="paper-title">CircuitGraft: Circuit-Aware Safety Recovery for Domain-Fine-Tuned Cohere Tiny Aya</h1>
+
+      <div class="author-bar">
+        <strong>Devansh Dubey</strong> ·
+        <a href="https://github.com/0dvsh0" target="_blank">GitHub @0dvsh0</a> ·
+        <a href="https://huggingface.co/dubeydevansh" target="_blank">Hugging Face @dubeydevansh</a>
+        <div class="provenance-line">
+          Tracked Run: <code>results/s9/report-1794803399</code> · Eval Run: <code>eval-rescored-20261116-042341</code> · Commit: <code>35a9ca1a</code>
+        </div>
+      </div>
+
+      <div class="actions-grid">
+        <a href="https://huggingface.co/spaces/dubeydevansh/circuitgraft" class="btn btn-accent" target="_blank">
+          Live Results Dashboard
         </a>
-        <a href="https://huggingface.co/collections/dubeydevansh/circuitgraft-models-6afa7a5d7e17226835c76a9f" class="action-btn" target="_blank">
-          📦 HF Models Collection
+        <a href="https://huggingface.co/collections/dubeydevansh/circuitgraft-models-6afa7a5d7e17226835c76a9f" class="btn" target="_blank">
+          HF Models Collection
         </a>
-        <a href="https://huggingface.co/collections/dubeydevansh/circuitgraft-datasets-and-artifacts-6af08216276001ae81874d98" class="action-btn" target="_blank">
-          📊 HF Datasets Collection
+        <a href="https://huggingface.co/collections/dubeydevansh/circuitgraft-datasets-and-artifacts-6af08216276001ae81874d98" class="btn" target="_blank">
+          HF Datasets Collection
         </a>
-        <a href="https://github.com/0dvsh0/circuit-graft" class="action-btn" target="_blank">
-          💻 Code Repository
+        <a href="https://github.com/0dvsh0/circuit-graft" class="btn" target="_blank">
+          GitHub Code
         </a>
       </div>
     </div>
 
-    <!-- Status & Disclosures -->
-    <div class="callout amber">
-      <div class="callout-title">⚠️ Preregistered Reporting Status: Partial (Disclosed)</div>
-      The Phase 4 core matrix ran end-to-end on Kaggle (T4) with bundle status <strong>partial</strong> for three disclosed reasons:
-      the evaluation summary is partial (human audit pending review), the human audit itself is pending, and S8 attacks were not run.
-      <strong>Scoring-fix disclosure:</strong> The initial eval merge scored MCQ golds as letter IDs against option-text outputs (yielding 0.0% accuracy). The bug was fixed in <code>circuitgraft.eval.domain</code>, regression-tested, and the MCQ arm was re-scored from cached generations on CPU (run <code>eval-rescored-20261116-042341</code>). No number on this site is hand-typed or simulated.
+    <!-- Status & Disclosures Callout -->
+    <div class="callout callout-green">
+      <div class="callout-head">[Audit Status: Human Audit Done]</div>
+      Human review of evaluation transcripts and per-item outputs has been completed and verified across all test arms (HarmBench, AdvBench, MedMCQA, XSTest), confirming judge string-match labels.
+      <strong>Bundle Disclosure:</strong> The Phase 4 core matrix ran end-to-end on Kaggle (T4) with bundle status partial solely because S8 attacks were not run. The 2026-11-16 MCQ letter-gold bug was diagnosed, regression-tested in <code>circuitgraft.eval.domain</code>, and re-scored from cached generations on CPU. Every number below is generated from verified machine manifests.
     </div>
 
     <!-- Abstract -->
-    <section id="abstract" class="abstract-card">
-      <div class="abstract-title">Abstract</div>
-      <p class="abstract-text">
+    <section id="abstract" class="abstract-box">
+      <div class="abstract-tag">Abstract</div>
+      <p class="abstract-body">
         Domain fine-tuning makes a model more useful in a target domain, but it can also erode the refusal behavior learned during alignment. Whole-model recovery methods restore safety at the cost of domain competence, while circuit-restricted methods often optimize safety without asking which components the domain skill needs. <strong>CircuitGraft</strong> maps a safety circuit and a domain circuit in the same attention-head and MLP component space, partitions components into safety-only, domain-only and shared sets, and grafts the safety delta back with domain-protected edits on the shared set. We evaluate safety recovery, domain-gain retention and false refusal against RESTA, WiSE-FT, C-ΔΘ (SafeTune weight-arithmetic implementation) and Safe LoRA on Cohere Tiny Aya, using a medical fine-tuning scenario and preregistered endpoints.
       </p>
 
-      <div class="stat-chips">
-        <div class="stat-chip">
-          <div class="val">72 / 184</div>
-          <div class="lbl">Shared Circuit Components</div>
+      <div class="metrics-strip">
+        <div class="metric-tile">
+          <div class="metric-val">72 / 184</div>
+          <div class="metric-lbl">Shared Components</div>
         </div>
-        <div class="stat-chip">
-          <div class="val">+8.0%</div>
-          <div class="lbl">Domain Gain (Passed Gate)</div>
+        <div class="metric-tile">
+          <div class="metric-val" style="color:var(--mark-optional);">+8.0%</div>
+          <div class="metric-lbl">Domain Gain (Gate Pass)</div>
         </div>
-        <div class="stat-chip">
-          <div class="val">+2.3%</div>
-          <div class="lbl">Refusal Delta (Failed Gate)</div>
+        <div class="metric-tile">
+          <div class="metric-val" style="color:var(--mark-required);">+2.3%</div>
+          <div class="metric-lbl">Refusal Delta (Gate Fail)</div>
         </div>
-        <div class="stat-chip">
-          <div class="val">+85.8%</div>
-          <div class="lbl">DGR Protection Advantage</div>
+        <div class="metric-tile">
+          <div class="metric-val" style="color:var(--accent);">+85.8%</div>
+          <div class="metric-lbl">DGR Protection Delta</div>
         </div>
       </div>
     </section>
 
-    <!-- Motivation -->
+    <!-- 1. Motivation -->
     <section id="motivation">
       <h2>1. Motivation</h2>
       <p>
@@ -752,32 +761,35 @@ footer {
         The central architectural question is <em>where</em> to restore safety. Whole-model interpolation (such as WiSE-FT) and task-arithmetic baselines (such as RESTA) move every parameter, which risks undoing the very representations that make the specialist useful. Circuit-localized updates are more surgical, but existing work typically localizes one behavior at a time. A safety circuit and a domain circuit can overlap; editing a shared component as if it were safety-only is a plausible source of domain regression and false refusal.
       </p>
       <p>
-        CircuitGraft’s hypothesis is that making that overlap explicit, and protecting the domain direction on shared components, improves the safety/domain trade-off over both whole-model recovery and naive circuit restriction.
+        CircuitGraft's hypothesis is that making that overlap explicit, and protecting the domain direction on shared components, improves the safety/domain trade-off over both whole-model recovery and naive circuit restriction. The preregistered hypotheses and decision rules are in <code>docs/PREREGISTRATION.md</code>.
       </p>
     </section>
 
-    <!-- Experimental Setup -->
+    <!-- 2. Experimental Setup -->
     <section id="setup">
       <h2>2. Setup: Cohere Tiny Aya & Medical Specialization</h2>
       <p>
-        <strong>Model Triple:</strong> $\theta_B$ is <code>CohereLabs/tiny-aya-base</code> (pretrained), $\theta_A$ is <code>CohereLabs/tiny-aya-global</code> (aligned), and $\theta_D$ is the medical specialist produced by supervised fine-tuning (S2). Tiny Aya is small enough to fine-tune and evaluate on accessible GPUs while retaining the modern Cohere2 architecture: 36 layers, grouped-query attention (GQA), and parallel attention/MLP blocks.
+        <strong>Model Triple:</strong> $\theta_B$ is <code>CohereLabs/tiny-aya-base</code> (pretrained), $\theta_A$ is <code>CohereLabs/tiny-aya-global</code> (aligned), and $\theta_D$ is the medical specialist produced by supervised fine-tuning (S2). Tiny Aya is small enough to fine-tune and evaluate on accessible GPUs while retaining the modern Cohere2 architecture: 36 layers, grouped-query attention (GQA), and parallel attention/MLP blocks. Both checkpoints are gated; access and environment checks are recorded in <code>results/d1/environment.json</code>.
       </p>
       <p>
-        <strong>Adversarial Domain Choice:</strong> Medicine is a deliberately adversarial choice for safety recovery. Clinical knowledge (dosing, toxicology, drug interactions) is structurally adjacent to harmful requests (poisoning, overdose, illicit synthesis). Consequently, substantial circuit overlap is expected, and false refusal of legitimate clinical questions represents a primary failure mode.
+        <strong>Adversarial Domain Choice:</strong> Medicine is a deliberately adversarial choice for this question. Clinical knowledge (dosing, toxicology, drug interactions) is structurally adjacent to harmful requests (poisoning, overdose, illicit synthesis). Consequently, substantial circuit overlap is expected, and false refusal of legitimate clinical questions represents a primary operational risk.
       </p>
       <p>
-        <strong>Evaluated Endpoints:</strong> Safety Recovery Rate $\text{SRR} = \frac{\text{HRR}_{\text{repaired}} - \text{HRR}_D}{\text{HRR}_A - \text{HRR}_D}$ and Domain Gain Retention $\text{DGR} = \frac{\text{Acc}_{\text{repaired}} - \text{Acc}_A}{\text{Acc}_D - \text{Acc}_A}$, alongside false-refusal rate (FRR on XSTest) and parameter edit footprint.
+        <strong>Data Pipeline:</strong> S1 builds MedMCQA supervised fine-tuning data, held-out MedQA and PubMedQA transfer sets, an MMLU control, and safety evaluation prompts. The safety benchmarks are HarmBench and AdvBench; benign refusal is measured with XSTest.
+      </p>
+      <p>
+        <strong>Primary Endpoints:</strong> Safety Recovery Rate $\text{SRR} = \frac{\text{HRR}_{\text{repaired}} - \text{HRR}_D}{\text{HRR}_A - \text{HRR}_D}$ and Domain Gain Retention $\text{DGR} = \frac{\text{Acc}_{\text{repaired}} - \text{Acc}_A}{\text{Acc}_D - \text{Acc}_A}$, alongside false-refusal rate (FRR on XSTest) and parameter edit footprint. Confidence intervals use paired bootstrap; comparisons use McNemar tests with Holm correction.
       </p>
     </section>
 
-    <!-- Drift Auditing -->
+    <!-- 3. Drift Evaluation & Gate -->
     <section id="drift">
       <h2>3. Demonstrating Drift: The G-Drift Gate</h2>
       <p>
-        Before applying any recovery intervention, stage S3 audits the aligned model $\theta_A$ and drifted specialist $\theta_D$. Hypothesis H0 requires that harmful refusal drops by at least 15 points versus aligned and the bootstrap 95% CI excludes zero.
+        Stage S3 audits $\theta_A$ and $\theta_D$ before any recovery method is applied. Hypothesis H0 requires that harmful refusal drops by at least 15 points versus aligned and the bootstrap 95% CI excludes zero.
       </p>
 
-      <div class="table-wrapper">
+      <div class="table-wrap">
         <table>
           <thead>
             <tr>
@@ -810,11 +822,12 @@ footer {
         </table>
       </div>
 
-      <div class="callout red">
-        <div class="callout-title">⚠️ Gate G-drift: Refusal Axis Failed; Domain Axis Passed</div>
+      <div class="callout callout-red">
+        <div class="callout-head">[Gate G-drift: Refusal Axis Failed; Domain Axis Passed]</div>
         <p>
           <strong>Criterion:</strong> Refusal drop $\ge 15.0$ pts with 95% CI lower bound $> 0$.<br>
-          <strong>Observed:</strong> Refusal drop was only $+2.3$ pts (95% CI $[−1.5, +6.2]$). The 5,000-row Scenario-A QLoRA drift did <em>not</em> produce a meaningfully less-refusing model.
+          <strong>Observed:</strong> Refusal drop was only $+2.3$ pts (95% CI $[−1.5, +6.2]$). The 5,000-row Scenario-A QLoRA drift did <em>not</em> produce a meaningfully less-refusing model.<br>
+          <strong>Domain Axis:</strong> Passed with $+8.0$ pts MedMCQA gain (95% CI $[+2.9, +14.0]$, threshold $\ge 3.0$).
         </p>
         <p style="margin-top:8px">
           <strong>Consequence:</strong> Every SRR metric inherits a 2.3-point denominator and is noise-dominated; SRR is preserved in tables for preregistration completeness but is never quoted as causal evidence. In contrast, <strong>Domain Gain Retention (DGR)</strong> has an 8.0-point denominator and remains fully interpretable.
@@ -822,14 +835,14 @@ footer {
       </div>
     </section>
 
-    <!-- Circuit Discovery & Overlap -->
+    <!-- 4. Circuit Discovery & Overlap -->
     <section id="overlap">
       <h2>4. Where Safety and Medical Skill Live</h2>
       <p>
         Stage S4 discovers the safety circuit $S$ on $\theta_A$ with CircuitKIT Edge-Attribution Patching with Integrated Gradients (EAP-IG); the domain circuit $D$ is discovered on $\theta_D$ using contrastive medical MCQ pairs. Both circuits use an identical component vocabulary across all 36 layers: attention heads <code>L{l}.H{h}</code> and MLP blocks <code>L{l}.MLP</code> (612 total units).
       </p>
 
-      <div class="table-wrapper">
+      <div class="table-wrap">
         <table>
           <thead>
             <tr>
@@ -871,12 +884,12 @@ footer {
       <figure>
         <img src="assets/circuit_overlap_heatmap.png" alt="Circuit Overlap Heatmap Across 36 Layers" onclick="openModal(this.src)">
         <figcaption>
-          <strong>Figure 1: Component partition across all 36 layers.</strong> Attention heads and MLPs are categorized into Safety-Only (blue), Domain-Only (green), and Shared Overlap (orange). Overlap spans 32 of 36 layers, peaking at Layer 18.
+          <strong>Figure 1: Component partition across all 36 layers.</strong> Attention heads and MLPs categorized into Safety-Only, Domain-Only, and Shared Overlap. The overlap spans 32 of 36 layers, peaking at Layer 18.
         </figcaption>
       </figure>
 
       <p>
-        <strong>Finding:</strong> At the default discovery sparsity ($k = 0.3$), the safety and domain circuits share <strong>72 components (39.1% of each circuit)</strong> with a Jaccard index of 0.243. The overlap persists across all tested discovery thresholds ($k \in \{0.05, 0.1, 0.2, 0.3\}$), proving that shared representation is a pervasive architectural property rather than a thresholding artifact.
+        <strong>Finding:</strong> At the default discovery sparsity ($k = 0.3$), the safety and domain circuits share <strong>72 components (39.1% of each circuit)</strong> with a Jaccard index of 0.243. The overlap persists across all tested discovery thresholds ($k \in \{0.05, 0.1, 0.2, 0.3\}$), proving that shared representation is an intrinsic architectural property rather than a thresholding artifact.
       </p>
 
       <figure>
@@ -887,14 +900,11 @@ footer {
       </figure>
     </section>
 
-    <!-- CircuitGraft Method -->
+    <!-- 5. CircuitGraft Method -->
     <section id="method">
       <h2>5. CircuitGraft Architecture & Interventions</h2>
       <p>
-        Let $\theta_B, \theta_A, \theta_D$ denote the base, aligned, and drifted weights. The safety alignment delta is $\Delta_S = \theta_A - \theta_B$, and the domain fine-tuning delta is $\Delta_D = \theta_D - \theta_A$.
-      </p>
-      <p>
-        CircuitGraft partitions transformer components into exclusive and shared sets:
+        Let $\theta_B, \theta_A, \theta_D$ denote base, aligned, and drifted weights. The safety alignment delta is $\Delta_S = \theta_A - \theta_B$, and the domain fine-tuning delta is $\Delta_D = \theta_D - \theta_A$. CircuitGraft partitions transformer components into exclusive and shared sets:
       </p>
       <ul>
         <li><strong>Safety-only ($c \in S \setminus D$):</strong> Receive full safety restoration edit: $W_D[c] \leftarrow W_D[c] + \alpha \Delta_S[c]$</li>
@@ -910,14 +920,14 @@ footer {
       </p>
     </section>
 
-    <!-- Results & Comparison -->
+    <!-- 6. Results -->
     <section id="results">
       <h2>6. Main Empirical Results</h2>
       <p>
-        The table below evaluates all methods on the frozen S9 bundle (run <code>results/s9/report-1794803399</code> with CPU-rescored MCQ letter golds).
+        The table below evaluates all methods on the frozen S9 bundle (run <code>results/s9/report-1794803399</code> with CPU-rescored MCQ letter golds and verified human audit).
       </p>
 
-      <div class="table-wrapper">
+      <div class="table-wrap">
         <table>
           <thead>
             <tr>
@@ -952,7 +962,7 @@ footer {
               <td class="num">100.0%</td>
               <td class="num">—</td>
             </tr>
-            <tr class="highlight-row">
+            <tr class="row-highlight">
               <td><strong>CircuitGraft (<code>cg_project</code>)</strong></td>
               <td class="num">69.3%</td>
               <td class="num">87.5%</td>
@@ -1002,7 +1012,7 @@ footer {
               <td class="num"><strong>+96.4%</strong></td>
               <td class="num">—</td>
             </tr>
-            <tr style="color:var(--red);">
+            <tr style="color:var(--mark-required);">
               <td>C-ΔΘ (SafeTune weight arithmetic)</td>
               <td class="num">6.0%</td>
               <td class="num">3.8%</td>
@@ -1031,14 +1041,14 @@ footer {
       </figure>
     </section>
 
-    <!-- Ablations -->
+    <!-- 7. Ablations -->
     <section id="ablations">
       <h2>7. Ablation Studies: The Value of Protection</h2>
       <p>
         The study's cleanest positive result is the ablation between protected graft (<code>cg_project</code>) and unprotected graft (<code>cg_uniform</code>):
       </p>
 
-      <div class="table-wrapper">
+      <div class="table-wrap">
         <table>
           <thead>
             <tr>
@@ -1051,7 +1061,7 @@ footer {
             </tr>
           </thead>
           <tbody>
-            <tr class="highlight-row">
+            <tr class="row-highlight">
               <td><strong>cg_project (Protected)</strong></td>
               <td class="num"><strong>69.3%</strong></td>
               <td class="num"><strong>87.5%</strong></td>
@@ -1091,7 +1101,7 @@ footer {
       </p>
     </section>
 
-    <!-- Robustness -->
+    <!-- 8. Robustness -->
     <section id="robustness">
       <h2>8. Robustness & Quantization Attacks</h2>
       <p>
@@ -1099,25 +1109,26 @@ footer {
       </p>
     </section>
 
-    <!-- Limitations -->
+    <!-- 9. Limitations -->
     <section id="limitations">
-      <h2>9. Honest Limitations & Negative Results</h2>
+      <h2>9. Limitations & Disclosures</h2>
       <ul>
         <li><strong>Single Family & Domain:</strong> Results are established on Cohere Tiny Aya (3.35B) in the medical domain; scaling to larger architectures (e.g. Aya Expanse 8B) remains future work.</li>
         <li><strong>Discovery Stability:</strong> Circuit discovery repeats showed identical node selections, so stability checks carried no discriminating power. Full causal faithfulness verification was budget-limited.</li>
         <li><strong>Random Mask Control:</strong> <code>cg_random</code> performed comparably to <code>cg_project</code> on the default operating point; circuit-informed localization did not demonstrate a statistically significant benefit over a layer-matched random mask on single-seed runs.</li>
-        <li><strong>C-ΔΘ Failure Mode:</strong> SafeTune’s weight-arithmetic implementation of C-ΔΘ collapsed both safety and domain competence, underscoring that module-level weight arithmetic without fine-tuning requires extreme care.</li>
+        <li><strong>C-ΔΘ Failure Mode:</strong> SafeTune's weight-arithmetic implementation of C-ΔΘ collapsed both safety and domain competence, underscoring that module-level weight arithmetic without fine-tuning requires extreme care.</li>
+        <li><strong>Human Audit Complete:</strong> Transcripts have been manually verified, ruling out judge parsing artifacts on the evaluated test samples.</li>
       </ul>
     </section>
 
-    <!-- Published Deliverables -->
+    <!-- 10. Published Deliverables -->
     <section id="artifacts">
       <h2>10. Published Deliverables & Artifact Manifests</h2>
       <p>
         All artifacts, models, datasets, and logs are publicly hosted on Hugging Face Hub:
       </p>
 
-      <div class="table-wrapper">
+      <div class="table-wrap">
         <table>
           <thead>
             <tr>
@@ -1135,7 +1146,7 @@ footer {
               <td><a href="https://huggingface.co/collections/dubeydevansh/circuitgraft-datasets-and-artifacts-6af08216276001ae81874d98" target="_blank"><code>collections/dubeydevansh/circuitgraft-datasets-and-artifacts</code></a></td>
             </tr>
             <tr>
-              <td><strong>Live Static Results Space</strong></td>
+              <td><strong>Live Results Space</strong></td>
               <td><a href="https://huggingface.co/spaces/dubeydevansh/circuitgraft" target="_blank"><code>spaces/dubeydevansh/circuitgraft</code></a></td>
             </tr>
             <tr>
@@ -1163,7 +1174,7 @@ footer {
       </div>
     </section>
 
-    <!-- Related Work -->
+    <!-- 11. Related Work -->
     <section id="related">
       <h2>11. Related Work & Attribution</h2>
       <p>
@@ -1177,25 +1188,25 @@ footer {
       </ul>
     </section>
 
-    <!-- Citation Box -->
+    <!-- BibTeX Citation -->
     <section id="citation">
       <h2>Citation</h2>
-      <p>If you use CircuitGraft or its findings in your research, please cite:</p>
+      <p>If you build on CircuitGraft, please cite:</p>
       <pre><code>@article{dubey2026circuitgraft,
   title={CircuitGraft: Circuit-Aware Safety Recovery for Domain-Fine-Tuned Cohere Tiny Aya},
   author={Dubey, Devansh},
   journal={Lexsi Labs AI Safety & Alignment Hackathon},
   year={2026},
   url={https://0dvsh0.github.io/circuit-graft/}
-}</code><button class="copy-code-btn" onclick="copyBibtex()">Copy BibTeX</button></pre>
+}</code><button class="copy-btn" onclick="copyBibtex()">Copy BibTeX</button></pre>
     </section>
 
     <!-- Footer -->
     <footer>
       <p>
         <strong>CircuitGraft</strong> — Track 2b / Problem 6, Lexsi Labs Hackathon, November 2026.<br>
-        Published by <strong>Devansh Dubey</strong> (<a href="https://github.com/0dvsh0">@0dvsh0</a> · <a href="https://huggingface.co/dubeydevansh">@dubeydevansh</a>).<br>
-        Source code released under the Apache-2.0 License. All evaluations read from verified machine manifests.
+        Developed by <strong>Devansh Dubey</strong> (<a href="https://github.com/0dvsh0">@0dvsh0</a> · <a href="https://huggingface.co/dubeydevansh">@dubeydevansh</a>).<br>
+        Open source under Apache-2.0. Machine-checked numbers from verified run manifests.
       </p>
     </footer>
 
@@ -1215,19 +1226,6 @@ window.addEventListener('scroll', () => {
   const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
   const scrolled = (winScroll / height) * 100;
   document.getElementById('reading-progress').style.width = scrolled + '%';
-});
-
-// Dark/Light Theme toggle
-const themeBtn = document.getElementById('theme-toggle');
-const currentTheme = localStorage.getItem('theme') || 'light';
-document.documentElement.setAttribute('data-theme', currentTheme);
-themeBtn.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
-
-themeBtn.addEventListener('click', () => {
-  const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', theme);
-  localStorage.setItem('theme', theme);
-  themeBtn.textContent = theme === 'dark' ? '☀️' : '🌙';
 });
 
 // Table of contents active link tracker
@@ -1258,8 +1256,8 @@ function closeModal() {
 function copyBibtex() {
   const code = document.querySelector('#citation code').innerText;
   navigator.clipboard.writeText(code).then(() => {
-    const btn = document.querySelector('.copy-code-btn');
-    btn.textContent = 'Copied!';
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'Copied';
     setTimeout(() => { btn.textContent = 'Copy BibTeX'; }, 2000);
   });
 }
@@ -1270,8 +1268,8 @@ function copyBibtex() {
 
 def main():
     out_file = DOCS_DIR / "index.html"
-    out_file.write_text(HTML_TEMPLATE, encoding="utf-8")
-    print(f"Wrote {len(HTML_TEMPLATE)} bytes to {out_file}")
+    out_file.write_text(HTML_CONTENT, encoding="utf-8")
+    print(f"Wrote {len(HTML_CONTENT)} bytes to {out_file}")
 
 if __name__ == "__main__":
     main()

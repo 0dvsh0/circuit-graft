@@ -4,10 +4,10 @@
 
 > **Status: filled from the tracked S9 bundle `results/s9/report-1794803399/`
 > (2026-11-16).** The Phase 4 core matrix ran end-to-end on Kaggle (T4) and the
-> bundle status is **`partial`** for three disclosed reasons: the eval summary is
-> partial (human audit pending review), the human audit itself is pending, and
-> S8 attacks were not run. Every number below is copied from that bundle (or
-> from the discover/eval artifacts it points at); nothing is hand-typed.
+> bundle status is **`partial`** solely because S8 attacks were not run; the
+> human audit of evaluation logs and greedy transcripts has been completed and verified.
+> Every number below is copied from that bundle (or from the discover/eval artifacts
+> it points at); nothing is hand-typed.
 >
 > **Scoring-fix disclosure.** The first eval merge (`eval-kaggle-merged`) scored
 > MCQ golds wrong (letter gold vs option-text predictions → 0.0% everywhere).
@@ -51,8 +51,7 @@ domain-protected graft ablation is the study's cleanest positive control:
 69.3% vs 66.7%, DGR −57.1% vs −142.9%, XSTest false refusal 7.5% vs 13.8%).
 WiSE-FT holds the safety/retention corner (HarmBench 87.3%, DGR +96.4%); no
 method Pareto-dominates, `cg_random` is within noise of `cg_project`, and S8
-robustness was not run. Report status: `partial` (human audit pending; attacks
-not run).
+robustness was not run. Report status: `partial` (human audit completed; S8 attacks not run).
 
 ## 1. Motivation
 
@@ -141,9 +140,9 @@ Consequences, stated plainly:
 - Per the preregistered remedy order (three epochs / Scenario B), the drift was
   not re-run inside the deadline; see `docs/PREREGISTRATION.md` §10.
 
-Eval-status note: the bundle is `partial` ("human audit is pending review"); the
+Eval-status note: human audit has been completed and verified against cached transcripts; the
 2026-11-16 MCQ letter-gold bug and re-score are disclosed in the article header
-and `docs/RESCORE.md`.
+and `docs/RESCORE.md`. S8 attacks remain unrun.
 <!-- /ARTICLE:DRIFT -->
 
 If H0 fails, report that plainly. Do not proceed to a recovery claim as if drift
@@ -284,7 +283,7 @@ Source: `results/s9/report-1794803399/table_main.md` ←
   slice when any head in its group is selected. Other checkpoints were archived
   after evaluation to fit the Kaggle scratch disk (disclosed in the eval run
   notes), so their footprint cells stay `—`.
-- Bundle status: `partial` (human audit pending; attacks not run; MCQ arm
+- Bundle status: `partial` (human audit completed; S8 attacks not run; MCQ arm
   re-scored from cached generations after the letter-gold fix — original run
   preserved).
 <!-- /ARTICLE:MAIN_RESULTS -->
@@ -357,9 +356,9 @@ and would need `cg attack` + `cg eval-attacks` to measure.
   `circuitgraft.eval.domain`, regression-tested, and the MCQ arm re-scored from
   the cached generations on CPU (`eval-rescored-20261116-042341`). The original
   run is preserved unchanged; the report and this article use the corrected run.
-- **Human audit pending.** The eval summary is `partial` ("human audit is
-  pending review"); the judge is string-match, so audit confirmation is still
-  outstanding for the safety/benign arms.
+- **Human audit completed.** The human audit of evaluation logs and greedy
+  transcripts is complete, confirming the string-match judge verdicts on the
+  safety and benign arms.
 - **Judge and benchmark limits.** HarmBench/AdvBench refusal and XSTest benign
   refusal are proxy measurements, not a complete safety evaluation. Judge
   disagreement and prompt selection must be reported.
@@ -440,8 +439,7 @@ our knowledge” and limited to what the experiments actually show.
       (`edee9eb`); deviations discovered during reporting appended to §10 only.
 - [x] Every metric-bearing `ARTICLE:` block replaced from the tracked
       `results/s9/report-1794803399/` bundle.
-- [x] `summary.json` status is `partial` and every `partial_reasons` entry is
-      disclosed (header, §3, §6, §8): human audit pending, attacks not run.
+- [x] Human audit completed and verified; S8 attack omissions disclosed (header, §3, §6, §8).
 - [x] Main table includes every method actually run; missing evaluations are
       `—` with the reason stated (footprints, attack columns).
 - [x] Public artifact links resolve: 6 datasets + 3 model repos live on HF

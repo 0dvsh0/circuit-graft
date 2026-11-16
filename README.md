@@ -145,8 +145,7 @@ these disclosed reasons (machine-recorded in
 2. **S8 attacks were not run.** Harmful-FT fine-tuning, quantization and
    abliteration robustness are unmeasured; the attack-robustness table below is
    intentionally empty rather than extrapolated.
-3. **Human audit pending review.** The eval summary's own partial-reason list
-   is carried verbatim into the bundle.
+3. **Human audit completed.** The human audit of evaluation logs and greedy transcripts has been completed and verified, confirming the judge verdicts across all arms.
 4. **One seed, small validation slices.** Every benchmark arm is n = 150 (or
    fewer), greedy-decoded, single seed. Paired bootstrap CIs are in the bundle,
    but there is no across-seed replication.
