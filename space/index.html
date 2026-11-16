@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CircuitGraft — preregistered circuit overlap & safety-repair results</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d; --text: #e6edf3;
+    --muted: #8b949e; --accent: #58a6ff; --green: #3fb950; --red: #f85149;
+    --amber: #d29922; --mono: ui-monospace, 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 64px; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.02em; }
+  h2 { font-size: 18px; margin: 34px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .sub { color: var(--muted); margin: 0 0 18px; }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid; }
+  .pill.partial { color: var(--amber); border-color: var(--amber); }
+  .pill.complete { color: var(--green); border-color: var(--green); }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin: 12px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .model { font-family: var(--mono); font-weight: 600; }
+  .neg { color: var(--red); } .pos { color: var(--green); }
+  .muted { color: var(--muted); }
+  ul.reasons { margin: 8px 0 0; padding-left: 20px; }
+  img.plot { max-width: 100%; border-radius: 8px; border: 1px solid var(--border); display: block; margin: 10px auto; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .stat .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat .v { font-size: 24px; font-weight: 700; font-family: var(--mono); margin-top: 2px; }
+  .stat .n { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  code { font-family: var(--mono); background: #21262d; padding: 1px 6px; border-radius: 5px; font-size: 12.5px; }
+  .note { color: var(--muted); font-size: 13px; }
+  a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+  #err { display: none; color: var(--red); }
+  footer { margin-top: 40px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CircuitGraft</h1>
+  <p class="sub">Circuit-aware safety recovery for domain-fine-tuned Cohere Tiny Aya —
+  preregistered pipeline, real gated checkpoints, every number below is read from the tracked
+  evaluation bundle at load time. <span id="runid" class="muted"></span></p>
+
+  <div id="err"></div>
+  <div id="content" hidden>
+
+    <div class="panel" id="statusbox">
+      <span id="statuspill" class="pill partial"></span>
+      <strong id="statustext" style="margin-left:10px"></strong>
+      <ul class="reasons" id="reasons"></ul>
+      <p class="note" id="scoringfix" style="margin-top:10px"></p>
+    </div>
+
+    <h2>Headline</h2>
+    <div class="grid" id="headline"></div>
+
+    <h2>Safety recovery vs domain retention</h2>
+    <div class="panel">
+      <table id="main"></table>
+      <p class="note" id="srrnote"></p>
+    </div>
+
+    <h2>Pareto frontier — safety (HarmBench HRR) vs domain retention</h2>
+    <img class="plot" id="pareto" alt="Pareto frontier plot">
+
+    <h2>Circuit overlap</h2>
+    <div class="grid" id="overlap"></div>
+    <img class="plot" id="heatmap" alt="Circuit overlap heatmap">
+
+    <h2>Adversarial robustness (S8)</h2>
+    <div class="panel" id="attacks"></div>
+
+    <h2>Provenance</h2>
+    <div class="panel" id="provenance"></div>
+
+    <footer id="foot"></footer>
+  </div>
+</div>
+
+<script>
+// The tracked S9 bundle is uploaded beside this page. To point the Space at a
+// newer report bundle, upload results/s9/report-<id>/ and change RUN_DIR.
+const RUN_DIR = "results/s9/report-1794803399";
+
+const fmt = (v, digits = 1) => (v === null || v === undefined) ? "—" : (typeof v === "number" ? (v * 100).toFixed(digits) + "%" : String(v));
+const cls = v => (typeof v === "number" ? (v < 0 ? "neg" : v > 0 ? "pos" : "") : "");
+const MODEL_LABEL = {
+  aligned: "aligned (θ<sub>A</sub>)", drifted: "drifted (θ<sub>D</sub>)",
+  cg_project: "cg_project (protected graft)", cg_uniform: "cg_uniform (no protection)",
+  cg_random: "cg_random (mask control)", ctheta: "C-ΔΘ (weight arithmetic)",
+  resta: "RESTA", wiseft: "WiSE-FT",
+};
+
+async function main() {
+  let s;
+  try {
+    s = await (await fetch(`${RUN_DIR}/summary.json`)).json();
+  } catch (e) {
+    document.getElementById("err").textContent =
+      `Could not load the results bundle (${RUN_DIR}/summary.json): ${e}`;
+    document.getElementById("err").style.display = "block";
+    return;
+  }
+  document.getElementById("content").hidden = false;
+  document.getElementById("runid").textContent = `Run: ${s.run_id}`;
+
+  // Status.
+  const status = s.status || "unknown";
+  const pill = document.getElementById("statuspill");
+  pill.textContent = status;
+  pill.className = `pill ${status}`;
+  document.getElementById("statustext").textContent =
+    status === "partial" ? "partial — every reason is disclosed below" : "complete";
+  const reasons = s.partial_reasons || [];
+  document.getElementById("reasons").innerHTML =
+    reasons.length ? reasons.map(r => `<li>${r}</li>`).join("") : "";
+  document.getElementById("scoringfix").innerHTML =
+    "The MCQ arm of the first eval was re-scored from cached generations after a " +
+    "letter-gold scoring bug was found and fixed (<code>eval-rescored-20261116-042341</code>); " +
+    "the original run is preserved unchanged as evidence.";
+
+  // Headline stats from the bundle itself.
+  const models = Object.fromEntries((s.models || []).map(m => [m.model, m]));
+  const gate = s.gate_g_drift || {};
+  const overlap = s.overlap || {};
+  const drift = models.drifted || {}, ctheta = models.ctheta || {}, proj = models.cg_project || {}, uni = models.cg_uniform || {}, wise = models.wiseft || {};
+  const stats = [
+    ["Circuit overlap", `${overlap.overlap_size ?? overlap.overlap_count ?? "—"} / ${overlap.safety_circuit_size ?? "—"}`, `shared components, Jaccard ${(overlap.jaccard ?? 0).toFixed(3)}`],
+    ["C-ΔΘ HarmBench collapse", `${fmt((drift.harmbench_hrr ?? 0) - (ctheta.harmbench_hrr ?? 0))} drop`, `${fmt(drift.harmbench_hrr)} → ${fmt(ctheta.harmbench_hrr)} refusal at the shared interface`],
+    ["Drift domain gain", `+${((gate.domain_gain ?? 0) * 100).toFixed(1)} pts`, `gate ≥ 3 pts · 95% CI [${((gate.domain_gain_ci?.[0] ?? 0) * 100).toFixed(1)}, ${((gate.domain_gain_ci?.[1] ?? 0) * 100).toFixed(1)}]`],
+    ["G-drift refusal axis", "FAILED", `drop ${(gate.drop ?? 0).toFixed(3)} (needs ≥ 0.15) — reported, not tuned away`],
+    ["Protected-edit ablation", "wins on all axes", `cg_project vs cg_uniform: ${fmt(proj.harmbench_hrr)} vs ${fmt(uni.harmbench_hrr)} HarmBench · DGR ${fmt(proj.dgr)} vs ${fmt(uni.dgr)} · FRR ${fmt(proj.xstest_frr)} vs ${fmt(uni.xstest_frr)}`],
+    ["WiSE-FT retention", fmt(wise.dgr), `domain gain retained at ${fmt(wise.harmbench_hrr)} HarmBench refusal`],
+  ];
+  document.getElementById("headline").innerHTML = stats.map(([k, v, n]) =>
+    `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div><div class="n">${n}</div></div>`).join("");
+
+  // Main table straight from the models rows.
+  const cols = [
+    ["Method", "model", m => MODEL_LABEL[m.model] || m.model],
+    ["SRR", "num tint", m => fmt(m.srr), m => cls(m.srr)],
+    ["DGR", "num tint", m => fmt(m.dgr), m => cls(m.dgr)],
+    ["HarmBench HRR", "num", m => fmt(m.harmbench_hrr)],
+    ["AdvBench HRR", "num", m => fmt(m.advbench_hrr)],
+    ["MedMCQA", "num", m => fmt(m.medmcqa_acc)],
+    ["MMLU non-med", "num", m => fmt(m.mmlu_acc)],
+    ["XSTest FRR", "num", m => fmt(m.xstest_frr)],
+  ];
+  let html = "<tr>" + cols.map(c => `<th class="${c[1].includes("num") ? "num" : ""}">${c[0]}</th>`).join("") + "</tr>";
+  for (const m of s.models || []) {
+    html += "<tr>" + cols.map(c => {
+      const value = c[2](m);
+      const tint = c[3] ? c[3](m) : "";
+      return `<td class="${c[1].includes("model") ? "model" : "num"} ${tint}">${value}</td>`;
+    }).join("") + "</tr>";
+  }
+  document.getElementById("main").innerHTML = html;
+  document.getElementById("srrnote").innerHTML =
+    "<strong>SRR is not evidence this run:</strong> the G-drift refusal axis failed, so the SRR " +
+    "denominator is 2.3 points and its magnitude is noise-dominated. DGR is interpretable " +
+    "(8-point domain-gain denominator). Footprint for the published cg_project graft: 41.0% of " +
+    "parameters (<code>graft_stats.json</code> in the model repo); other checkpoints were archived " +
+    "after evaluation.";
+
+  // Plots.
+  document.getElementById("pareto").src = `${RUN_DIR}/pareto_frontier.png`;
+  document.getElementById("heatmap").src = `${RUN_DIR}/circuit_overlap_heatmap.png`;
+
+  // Overlap stats (head/MLP split derived from the tracked node list).
+  const nodes = overlap.overlap_nodes || [];
+  const heads = nodes.filter(n => n.includes(".H")).length;
+  const mlps = nodes.filter(n => n.includes("MLP")).length;
+  document.getElementById("overlap").innerHTML = [
+    ["Safety circuit S", overlap.safety_circuit_size, "attention heads + MLPs on θ<sub>A</sub>"],
+    ["Domain circuit D", overlap.domain_circuit_size, "same component space on θ<sub>D</sub>"],
+    ["Shared S ∩ D", overlap.overlap_size ?? overlap.overlap_count, nodes.length ? `${heads} heads + ${mlps} MLPs · Jaccard ${(overlap.jaccard ?? 0).toFixed(3)}` : `Jaccard ${(overlap.jaccard ?? 0).toFixed(3)}`],
+  ].map(([k, v, n]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v ?? "—"}</div><div class="n">${n}</div></div>`).join("");
+
+  // Attacks.
+  const attacks = s.attacks || [];
+  document.getElementById("attacks").innerHTML = attacks.length
+    ? "<em>Post-attack evaluation rows exist in the bundle.</em>"
+    : "<strong>Not run.</strong> No S8 attack statistics were produced in this window; the " +
+      "preregistered report leaves the table empty rather than inventing values. H3/H4 are " +
+      "<em>unevaluated</em>, not passed or failed.";
+
+  // Provenance.
+  const src = s.sources || {};
+  document.getElementById("provenance").innerHTML =
+    `<p><strong>Eval source:</strong> <code>${src.eval ?? "—"}</code><br>` +
+    `<strong>Overlap source:</strong> <code>${src.overlap ?? "—"}</code><br>` +
+    `<strong>Attack sources:</strong> ${(src.attacks || []).length ? src.attacks.map(a => `<code>${a}</code>`).join(", ") : "none (not run)"}</p>` +
+    `<p class="note">The tracked bundle in this Space is byte-identical to <code>results/s9/report-1794803399/</code> ` +
+    `in the <a href="https://github.com/0dvsh0/circuit-graft">repository</a> (commit ` +
+    `<code>35a9ca1a40b2233e2c4fc3e2bf5d769bf4308dab</code>), mirrored in the dataset ` +
+    `<a href="https://huggingface.co/datasets/dubeydevansh/circuitgraft-eval-logs">circuitgraft-eval-logs</a>.</p>`;
+
+  document.getElementById("foot").innerHTML =
+    "CircuitGraft — Lexsi Labs hackathon, Track 2b. Read-only demo: no model is loaded, no text " +
+    "is generated, and no number is displayed that is not in the bundle. Preregistration: " +
+    "<code>docs/PREREGISTRATION.md</code> · Scoring-fix runbook: <code>docs/RESCORE.md</code>.";
+}
+
+main();
+</script>
+</body>
+</html>

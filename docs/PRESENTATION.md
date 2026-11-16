@@ -53,8 +53,10 @@ Then the honest status line (say it proudly, don't bury it):
 
 ## Demo flow (5 minutes)
 
-1. **Space** (`space/`) — reads the tracked S9 bundle `report-1794803399`:
-   status, tables, plots. Show the overlap heatmap: two circuits, 72 shared
+1. **Live Space** — https://huggingface.co/spaces/dubeydevansh/circuitgraft
+   (static dashboard, verified 2026-11-16): renders the tracked S9 bundle
+   `report-1794803399` — status pill with disclosed partial reasons, headline
+   stats, main table, plots. Show the overlap heatmap: two circuits, 72 shared
    components spread across 32 layers.
 2. **Main table** — walk the ctheta row (6.0% HarmBench, 24.7% MedMCQA:
    double collapse) against cg_project (69.3%, 40.0%, FRR 7.5%) and cg_uniform
@@ -171,3 +173,7 @@ Then the honest status line (say it proudly, don't bury it):
 - Recovery story: `docs/EXPERIMENT_LOG.md` 2026-11-15 power-cut entry + the
   2026-11-16 scoring-bug entry.
 - Article: `docs/ARTICLE.md` — every block filled from the bundle.
+- **Live demo Space**: https://huggingface.co/spaces/dubeydevansh/circuitgraft
+  (static SDK — free tier; `space/index.html` renders the uploaded
+  `report-1794803399` bundle client-side; the Gradio `space/app.py` variant
+  needs PRO to host and stays in-repo for local use).

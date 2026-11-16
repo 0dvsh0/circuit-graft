@@ -1494,4 +1494,9 @@ archiving: `tinyaya-med-drifted` (merged), `tinyaya-med-lora` (adapter) and
 run `cg_project-c8e590934ca7b172`, the same run id the eval summary points at,
 and its `graft_stats.json` records the edit footprint: 41.0% of parameters
 (1,153,244,513) at the default operating point (topk, svd_project, k_s=k_d=0.05,
-alpha=0.5, alpha_o=1.0). The Space (`space/`) remains to be deployed.
+alpha=0.5, alpha_o=1.0). The results dashboard Space is **live** at
+https://huggingface.co/spaces/dubeydevansh/circuitgraft: Gradio SDK Spaces
+require HF PRO (402), so the deployed version is a *static* Space —
+`space/index.html` renders the uploaded `report-1794803399` bundle client-side
+(verified in-browser 2026-11-16; the Gradio `space/app.py` variant remains for
+local/PRO use).

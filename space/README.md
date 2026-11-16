@@ -1,12 +1,28 @@
 # CircuitGraft Space
 
-Gradio demo for the tracked results bundle. The app is read-only: it displays
-`results/s9/report-*/` tables and plots, plus optional cached preset responses.
-It does not load a model, generate text, or invent metrics.
+Read-only results demo for the tracked results bundle. The app is data-driven:
+it displays `results/s9/report-*/` tables and plots, plus optional cached preset
+responses. It does not load a model, generate text, or invent metrics.
 
-## Deploy
+## Deployed (live)
 
-1. Create a Hugging Face Space with the Gradio SDK.
+**https://huggingface.co/spaces/dubeydevansh/circuitgraft** — a *static* Space
+(free tier). Gradio SDK Spaces now require HF PRO (API returned 402), so the
+deployed version is `space/index.html`: a static page that fetches the tracked
+bundle from the Space repo at load time (`results/s9/report-1794803399/`,
+uploaded verbatim, commit `35a9ca1a`). The Compare tab (cached responses) is
+only available in the Gradio variant below.
+
+To update the deployed bundle: re-run `cg report`, then upload the new
+`results/s9/report-<id>/` to the Space and change the `RUN_DIR` constant at the
+top of `index.html`.
+
+## Gradio variant (local / PRO)
+
+`app.py` + `requirements.txt` in this folder run the same data-driven UI under
+Gradio, including the Compare tab:
+
+1. Create a Hugging Face Space with the Gradio SDK (PRO).
 2. Copy this folder's contents (`app.py`, `requirements.txt`) to the Space root.
 3. Copy the newest tracked bundle into the Space:
 

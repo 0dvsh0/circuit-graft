@@ -409,7 +409,7 @@ same run id the eval summary points at).
 | S9 report run | `results/s9/report-1794803399/summary.json` |
 | Model collection | https://huggingface.co/collections/dubeydevansh/circuitgraft-models-6afa7a5d7e17226835c76a9f — published: `dubeydevansh/circuitgraft-tinyaya-med-drifted` (merged), `dubeydevansh/circuitgraft-tinyaya-med-cg-project` (merged graft, carries `graft_stats.json` + manifest), `dubeydevansh/circuitgraft-tinyaya-med-lora` (adapter). Other variants: archived, not published (disclosed) |
 | Dataset collection | https://huggingface.co/collections/dubeydevansh/circuitgraft-datasets-and-artifacts-6af08216276001ae81874d98 — `circuitgraft-med-sft-curated`, `-safety-pairs`, `-domain-pairs`, `-med-sensitive-eval`, `-circuits` (circuit scores/faithfulness/overlap at every sparsity), `-eval-logs` (S9 bundles incl. `report-1794803399`) |
-| Gradio Space | pending deploy — `space/` (Gradio SDK), deploy per `space/README.md` |
+| Gradio Space | https://huggingface.co/spaces/dubeydevansh/circuitgraft — **live static dashboard** (free static SDK; renders the tracked bundle `results/s9/report-1794803399/` client-side, fetches `summary.json` at load time, verified rendering 2026-11-16). A Gradio variant for local/PRO use: `space/app.py` per `space/README.md` |
 | Hardware / stack | GPU stages: Kaggle T4 (14.56 GiB usable), single idempotent notebook; MCQ re-score: local workstation, CPU-only. torch 2.11.0+rocm7.14, transformers 5.22.1, peft 0.21.2, trl 1.14.2, safetune 0.1.12, circuitkit 0.2.0, auditkit 1.1.3, curatorkit 0.1.22, huggingface_hub 1.33.0 (from the eval manifest) |
 <!-- /ARTICLE:ARTIFACTS -->
 
@@ -445,8 +445,9 @@ our knowledge” and limited to what the experiments actually show.
 - [x] Main table includes every method actually run; missing evaluations are
       `—` with the reason stated (footprints, attack columns).
 - [x] Public artifact links resolve: 6 datasets + 3 model repos live on HF
-      (collections linked in §10); Space deploy is the remaining optional
-      step (`space/`, per its README).
+      (collections linked in §10) and the results dashboard Space is live:
+      https://huggingface.co/spaces/dubeydevansh/circuitgraft (static SDK,
+      verified rendering 2026-11-16).
 - [x] Abstract is under 500 words and contains no number absent from the S9
       bundle and its pointed-to artifacts.
 - [x] Reproduction command and commit SHA match the bundle manifest:
