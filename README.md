@@ -2,6 +2,7 @@
 
 Circuit-aware safety recovery for domain-fine-tuned **Cohere Tiny Aya** models.
 
+[![Research Paper](https://img.shields.io/badge/paper-research_article-blueviolet)](https://0dvsh0.github.io/circuit-graft/)
 [![Live demo](https://img.shields.io/badge/demo-live_Space-2ea44f)](https://huggingface.co/spaces/dubeydevansh/circuitgraft)
 [![Tests](https://img.shields.io/badge/tests-299_passing-2ea44f)](tests/)
 [![Code license](https://img.shields.io/badge/code-Apache--2.0-blue)](LICENSE)
@@ -113,6 +114,7 @@ dataset. No harmful completion is reproduced; the C-ΔΘ row shows its real
 
 | Artifact | Where |
 |---|---|
+| Research Paper / Article site | [0dvsh0.github.io/circuit-graft](https://0dvsh0.github.io/circuit-graft/) |
 | Live results dashboard (zero-setup, no GPU) | [dubeydevansh/circuitgraft Space](https://huggingface.co/spaces/dubeydevansh/circuitgraft) |
 | Drifted medical specialist (merged) | [circuitgraft-tinyaya-med-drifted](https://huggingface.co/dubeydevansh/circuitgraft-tinyaya-med-drifted) |
 | Grafted checkpoint + LoRA adapter | [circuitgraft-tinyaya-med-cg-project](https://huggingface.co/dubeydevansh/circuitgraft-tinyaya-med-cg-project) |
