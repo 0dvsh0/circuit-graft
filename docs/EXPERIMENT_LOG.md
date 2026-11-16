@@ -1500,3 +1500,31 @@ require HF PRO (402), so the deployed version is a *static* Space —
 `space/index.html` renders the uploaded `report-1794803399` bundle client-side
 (verified in-browser 2026-11-16; the Gradio `space/app.py` variant remains for
 local/PRO use).
+
+### 2026-11-16 empty heatmap fix (display layer, no numbers changed)
+
+Spotted while demoing the live Space: `circuit_overlap_heatmap.png` rendered
+axes and legend but every cell was "Neither" (flat background). Root cause:
+the S9 plot function consumed the raw EAP-IG `scores.json` and treated
+`score > 0` as circuit membership — but attribution scores are **positive for
+all 612 components** in the vocabulary, so the membership matrix was constant
+(all "shared"), and matplotlib renders a constant `imshow` as a single flat
+colour. The correct membership source is the preregistered selection in
+`overlap.json` (the same 184 / 184 / 72 sets the overlap table reports).
+
+Fix: new pure helper `circuitgraft.report.plots.overlap_matrix` builds the
+matrix from the selected component sets; `plot_overlap_heatmap` plots
+membership, `run_report` feeds it the `overlap.json` sets, and the raw-scores
+path is gone. Regression test asserts the matrix codes (safety-only /
+domain-only / shared / MLP column). The bundle PNG was regenerated in place in
+`results/s9/report-1794803399/` (cell counts verified programmatically:
+72 shared, 112 safety-only, 112 domain-only, 316 neither — exactly the
+reported overlap stats), the manifest's output hash was refreshed, and the
+Space was re-uploaded and byte-compared (sha256 identical). No table, summary
+or article number changed.
+
+Housekeeping: the local `artifacts/discover/discover-6b120d61758287f6/` copy
+had been pruned by the cloud-import's local-dir bookkeeping; it was restored
+from the private cloud dataset via
+`import_cloud_artifacts.py --include "artifacts/discover/**"` (21 files,
+content-identical to the published `circuitgraft-circuits` dataset).

@@ -3,6 +3,7 @@
 from circuitgraft.report.inject_readme import inject_all, inject_section
 from circuitgraft.report.pipeline import run_report
 from circuitgraft.report.plots import (
+    overlap_matrix,
     plot_attack_decay,
     plot_overlap_heatmap,
     plot_pareto_frontier,
@@ -19,6 +20,7 @@ __all__ = [
     "generate_overlap_table",
     "inject_all",
     "inject_section",
+    "overlap_matrix",
     "plot_attack_decay",
     "plot_overlap_heatmap",
     "plot_pareto_frontier",

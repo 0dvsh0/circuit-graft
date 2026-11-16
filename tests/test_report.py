@@ -319,11 +319,26 @@ def test_plots(tmp_path: Path) -> None:
         assert pareto_path.exists()
 
     heatmap_path = tmp_path / "heatmap.png"
-    s_scores = {"L0.H1": 0.5, "L1.MLP": 0.8}
-    d_scores = {"L1.MLP": 0.6, "L2.H3": 0.3}
-    result_hm = plot_overlap_heatmap(s_scores, d_scores, heatmap_path, n_layers=4, n_heads=4)
+    safety_members = ["L0.H1", "L1.MLP", "L2.H0"]
+    domain_members = ["L1.MLP", "L2.H3", "L3.H2"]
+    result_hm = plot_overlap_heatmap(safety_members, domain_members, heatmap_path, n_layers=4, n_heads=4)
     if result_hm is not None:
         assert heatmap_path.exists()
+
+    # Regression: the heatmap must encode *membership* from the preregistered
+    # selection, not raw attribution scores (EAP-IG scores are positive for
+    # every component, which previously degenerated the matrix to a constant
+    # and rendered an all-"Neither" plot).
+    from circuitgraft.report.plots import overlap_matrix
+
+    matrix = overlap_matrix(safety_members, domain_members, n_layers=4, n_heads=4)
+    assert matrix.shape == (4, 5)
+    assert matrix[0, 1] == 2  # safety only
+    assert matrix[1, 4] == 3  # shared (MLP column = n_heads)
+    assert matrix[2, 0] == 2  # safety only
+    assert matrix[2, 3] == 1  # domain only
+    assert matrix[3, 2] == 1  # domain only
+    assert matrix.sum() == 2 + 3 + 2 + 1 + 1
 
     decay_path = tmp_path / "decay.png"
     attack_res = {

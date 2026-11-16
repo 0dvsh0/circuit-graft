@@ -9,8 +9,12 @@ Produces publication-quality plots:
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -120,34 +124,30 @@ def plot_pareto_frontier(
     return output_path
 
 
-def plot_overlap_heatmap(
-    safety_scores: dict[str, float],
-    domain_scores: dict[str, float],
-    output_path: str | Path,
+def overlap_matrix(
+    safety_members: Iterable[str],
+    domain_members: Iterable[str],
     n_layers: int = 36,
     n_heads: int = 16,
-) -> Path | None:
-    """Generate a layer-by-component heatmap of circuit overlap."""
-    if not _can_plot():
-        return None
+) -> np.ndarray:
+    """Build the layer × component membership matrix.
 
-    import matplotlib.pyplot as plt
+    Rows are layers ``0..n_layers-1``, columns are heads ``0..n_heads-1`` plus
+    the MLP column at index ``n_heads``. Values: 0 = neither circuit, 1 =
+    domain only, 2 = safety only, 3 = shared (overlap).
+
+    Membership must come from the **selected** component sets (the
+    preregistered top-fraction selection recorded in ``overlap.json``), never
+    from raw attribution scores: EAP-IG scores are positive for *every*
+    component in the vocabulary, so a ``score > 0`` test marks all 612 cells
+    as selected and the matrix degenerates to a constant.
+    """
     import numpy as np
 
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Matrix: rows = layers (0..35), cols = heads (0..15) + MLP (16)
-    # Value code: 0 = none, 1 = domain only, 2 = safety only, 3 = both (overlap)
     matrix = np.zeros((n_layers, n_heads + 1), dtype=int)
-
-    all_keys = set(safety_scores) | set(domain_scores)
-    for key in all_keys:
-        in_s = key in safety_scores and safety_scores[key] > 0
-        in_d = key in domain_scores and domain_scores[key] > 0
-        if not (in_s or in_d):
-            continue
-
+    safety = set(safety_members)
+    domain = set(domain_members)
+    for key in safety | domain:
         parts = key.split(".")
         if len(parts) != 2:
             continue
@@ -158,8 +158,7 @@ def plot_overlap_heatmap(
 
         if parts[1].startswith("H"):
             try:
-                head = int(parts[1][1:])
-                col = head
+                col = int(parts[1][1:])
             except ValueError:
                 continue
         elif parts[1] == "MLP":
@@ -168,21 +167,56 @@ def plot_overlap_heatmap(
             continue
 
         if 0 <= layer < n_layers and 0 <= col <= n_heads:
+            in_s = key in safety
+            in_d = key in domain
             if in_s and in_d:
                 matrix[layer, col] = 3
             elif in_s:
                 matrix[layer, col] = 2
             elif in_d:
                 matrix[layer, col] = 1
+    return matrix
+
+
+def plot_overlap_heatmap(
+    safety_members: Iterable[str],
+    domain_members: Iterable[str],
+    output_path: str | Path,
+    n_layers: int = 36,
+    n_heads: int = 16,
+) -> Path | None:
+    """Generate a layer-by-component heatmap of circuit overlap.
+
+    ``safety_members`` / ``domain_members`` are the *selected* component names
+    (``"L3.H9"``, ``"L0.MLP"``) from the discovery stage's preregistered
+    selection — the same sets the overlap table reports.
+    """
+    if not _can_plot():
+        return None
+
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import ListedColormap
+    from matplotlib.patches import Patch
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    matrix = overlap_matrix(safety_members, domain_members, n_layers, n_heads)
 
     fig, ax = plt.subplots(figsize=(10, 8), dpi=300)
 
     # Custom colormap: 0: white/lightgray, 1: blue (domain), 2: red (safety), 3: purple (overlap)
-    from matplotlib.colors import ListedColormap
-
     cmap = ListedColormap(["#f7f7f7", "#6baed6", "#fc9272", "#9e9ac8"])
 
-    ax.imshow(matrix, aspect="auto", cmap=cmap, origin="lower")
+    ax.imshow(
+        matrix,
+        aspect="auto",
+        cmap=cmap,
+        origin="lower",
+        vmin=0,
+        vmax=3,
+        interpolation="nearest",
+    )
 
     ax.set_title("Safety vs Domain Circuit Distribution (Cohere2 Architecture)", fontsize=12, pad=10)
     ax.set_xlabel("Component (Heads 0–15, MLP)", fontsize=10)
@@ -196,8 +230,6 @@ def plot_overlap_heatmap(
     ax.set_yticklabels(range(0, n_layers, 2), fontsize=8)
 
     # Legend
-    from matplotlib.patches import Patch
-
     legend_elements = [
         Patch(facecolor="#f7f7f7", edgecolor="gray", label="Neither"),
         Patch(facecolor="#6baed6", label="Domain only"),

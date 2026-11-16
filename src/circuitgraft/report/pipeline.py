@@ -21,7 +21,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from circuitgraft.discover.overlap import read_score_payload
 from circuitgraft.registry import (
     REPO_ROOT,
     dump_json,
@@ -159,14 +158,22 @@ def _find_overlap(
     return {}, None, None
 
 
-def _find_scores(discover_dir: Path | None) -> tuple[dict[str, float], dict[str, float]]:
-    if discover_dir is None:
-        return {}, {}
-    safety_path = discover_dir / "safety" / "scores.json"
-    domain_path = discover_dir / "domain" / "scores.json"
-    safety = read_score_payload(safety_path) if safety_path.exists() else {}
-    domain = read_score_payload(domain_path) if domain_path.exists() else {}
-    return safety, domain
+def _selected_members(
+    overlap_data: dict[str, Any],
+) -> tuple[list[str], list[str]]:
+    """Extract the preregistered selected component sets from the overlap report.
+
+    The heatmap must plot *membership*, not attribution scores: EAP-IG scores
+    are positive for every component in the vocabulary, so a ``score > 0``
+    test would mark all 612 components as selected. ``overlap.json`` carries
+    the finalized top-fraction sets (184 / 184 / 72 at k = 0.3) — the same
+    sets the overlap table reports.
+    """
+    safety = overlap_data.get("safety") or {}
+    domain = overlap_data.get("domain") or {}
+    safety_members = [str(item) for item in (safety.get("components") or [])]
+    domain_members = [str(item) for item in (domain.get("components") or [])]
+    return safety_members, domain_members
 
 
 def _post_eval_hrr(document: dict[str, Any]) -> Any:
@@ -378,13 +385,13 @@ def run_report(
             reasons.append(f"eval summary is {eval_data['status']}")
         reasons.extend(str(reason) for reason in eval_data.get("partial_reasons", []))
 
-    # 2. Discovery overlap and the score maps used by the heatmap.
-    overlap_data, overlap_path, discover_dir = _find_overlap(res_dir, root)
+    # 2. Discovery overlap; the heatmap plots the preregistered selected sets.
+    overlap_data, overlap_path, _discover_dir = _find_overlap(res_dir, root)
     if overlap_path is None:
         reasons.append("no S4 discovery overlap report found (run `cg discover`)")
     else:
         sources.append(overlap_path)
-    safety_scores, domain_scores = _find_scores(discover_dir)
+    safety_members, domain_members = _selected_members(overlap_data)
 
     # 3. Attack runs; combine with clean HRR from the eval summary.
     attack_data, attack_sources = _collect_attack_stats(res_dir, root)
@@ -408,8 +415,8 @@ def run_report(
     plot_pareto_frontier(eval_data, pareto_png)
 
     heatmap_png = out_dir / "circuit_overlap_heatmap.png"
-    if safety_scores or domain_scores:
-        plot_overlap_heatmap(safety_scores, domain_scores, heatmap_png)
+    if safety_members or domain_members:
+        plot_overlap_heatmap(safety_members, domain_members, heatmap_png)
 
     decay_png = out_dir / "attack_decay.png"
     if attack_data.get("harmful_ft_decay"):
