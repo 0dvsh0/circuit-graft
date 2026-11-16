@@ -1481,3 +1481,17 @@ tables and README blocks regenerated
 (`results/s9/report-1794803399/`; the intermediate mis-rendered bundle was
 deleted). Article, presentation playbook and runbook updated to the corrected
 numbers.
+
+### 2026-11-16 publish (S10)
+
+`cg publish` (run `publish-1794804756`): 6 public datasets + 3 model repos are
+live under `dubeydevansh` (collections "CircuitGraft Models" and
+"CircuitGraft Datasets & Artifacts"). `publish.py` collections were fixed to
+reuse existing collections (`exists_ok=True`) instead of failing with HTTP 409
+on re-runs. The Kaggle notebook had already uploaded three checkpoints before
+archiving: `tinyaya-med-drifted` (merged), `tinyaya-med-lora` (adapter) and
+`tinyaya-med-cg-project` (merged graft) — the published graft's manifest names
+run `cg_project-c8e590934ca7b172`, the same run id the eval summary points at,
+and its `graft_stats.json` records the edit footprint: 41.0% of parameters
+(1,153,244,513) at the default operating point (topk, svd_project, k_s=k_d=0.05,
+alpha=0.5, alpha_o=1.0). The Space (`space/`) remains to be deployed.

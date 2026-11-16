@@ -131,6 +131,16 @@ Then the honest status line (say it proudly, don't bury it):
 > validated causal fact — and the *behavioral* ablation (protected vs
 > unprotected edit) is what we lean on for the causal story."
 
+**"41% of parameters changed — how is that surgical?"**
+> "Sparse at component granularity, not parameter granularity. The
+> preregistered default edits the selected components' tensors (topk k=0.05
+> over the 612-component space, svd_project protection on shared ones, alpha
+> 0.5); attention heads and MLPs span most of a transformer's weights, and the
+> GQA-aware K/V rule edits a whole KV slice when any head in its group is
+> selected. The honest test is the outcome: the protected edit beats the
+> unprotected control on every axis, and never collapses safety the way
+> C-ΔΘ's whole-tensor arithmetic does."
+
 ## Do-not-claim list (protects you under questioning)
 
 - Never say the graft "recovered safety" or quote positive SRR as a win; never
@@ -143,14 +153,21 @@ Then the honest status line (say it proudly, don't bury it):
 - Don't present the circuits as causally validated: faithfulness is incomplete
   and disclosed (prereg §6 → inconclusive).
 
-## Assets inventory (all tracked)
+## Assets inventory (all tracked + published)
 
 - Overlap: `artifacts/discover/discover-6b120d61758287f6/overlap.json` +
-  heatmap PNG (also copied into `results/s9/report-1794803399/`).
+  heatmap PNG (also copied into `results/s9/report-1794803399/`), published as
+  `dubeydevansh/circuitgraft-circuits`.
 - Eval evidence: `artifacts/eval/eval-kaggle-merged/` (original, preserved) and
   `artifacts/eval/eval-rescored-20261116-042341/` (corrected MCQ arm).
 - Report bundle: `results/s9/report-1794803399/` (README blocks injected from
-  it by `cg report`).
+  it by `cg report`), published inside `dubeydevansh/circuitgraft-eval-logs`
+  (`s9/report-1794803399/`).
+- **Published models** (live on HF): `tinyaya-med-drifted` (merged),
+  `tinyaya-med-cg-project` (merged graft — manifest proves it is the exact
+  evaluated run `cg_project-c8e590934ca7b172`; `graft_stats.json`: footprint
+  41.0%, 1,153,244,513 params at `topk`/`svd_project`/`k=0.05`/`alpha=0.5`),
+  `tinyaya-med-lora` (adapter).
 - Recovery story: `docs/EXPERIMENT_LOG.md` 2026-11-15 power-cut entry + the
   2026-11-16 scoring-bug entry.
 - Article: `docs/ARTICLE.md` — every block filled from the bundle.

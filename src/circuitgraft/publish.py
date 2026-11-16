@@ -565,7 +565,9 @@ def run_publish(
             {"repo_id": repo_id, "source": _display_path(staged, root)}
         )
 
-    # 3. Collections.
+    # 3. Collections. Collections are created once per namespace; re-running
+    # publish must REUSE them (exists_ok) and add missing items instead of
+    # failing with HTTP 409 "Collection already exists".
     collections: dict[str, str | None] = {"models": None, "datasets": None}
     if api is not None:
         try:
@@ -577,11 +579,15 @@ def run_publish(
                         "Models produced by CircuitGraft: domain drifted and "
                         "safety-repaired checkpoints."
                     ),
+                    exists_ok=True,
                 )
                 collections["models"] = col.slug
                 for item in published["models"]:
                     api.add_collection_item(
-                        col.slug, item_id=item["repo_id"], item_type="model"
+                        col.slug,
+                        item_id=item["repo_id"],
+                        item_type="model",
+                        exists_ok=True,
                     )
             if published["datasets"]:
                 col = api.create_collection(
@@ -591,11 +597,15 @@ def run_publish(
                         "Curated datasets, contrastive pairs, circuit scores and "
                         "evaluation logs for CircuitGraft."
                     ),
+                    exists_ok=True,
                 )
                 collections["datasets"] = col.slug
                 for item in published["datasets"]:
                     api.add_collection_item(
-                        col.slug, item_id=item["repo_id"], item_type="dataset"
+                        col.slug,
+                        item_id=item["repo_id"],
+                        item_type="dataset",
+                        exists_ok=True,
                     )
         except Exception as exc:  # noqa: BLE001 - collection creation is best effort
             logger.warning("could not create or populate Hugging Face collections: %s", exc)

@@ -274,9 +274,16 @@ Source: `results/s9/report-1794803399/table_main.md` ←
   supported at the default operating point**; the preregistered selection sweep
   that would pick each method's best operating point was a disclosed
   deadline cut, so this is a fixed-hyperparameter comparison.
-- **Footprint is `—` for every row**: ablation checkpoints were archived after
-  evaluation to fit the Kaggle scratch disk (disclosed in the eval run notes);
-  their metrics and manifests remain.
+- **Footprint.** The published `cg_project` model carries its edit stats
+  (`graft_stats.json` in `dubeydevansh/circuitgraft-tinyaya-med-cg-project`):
+  **41.0% of parameters changed (1,153,244,513 tensors' elements)** at the
+  preregistered default operating point (`topk`, `svd_project`,
+  `k_s = k_d = 0.05`, `alpha = 0.5`, `alpha_o = 1.0`). The edit is sparse at
+  *component* granularity, not parameter granularity — heads and MLPs span
+  most of a transformer's weights, and the GQA-aware K/V rule edits a whole KV
+  slice when any head in its group is selected. Other checkpoints were archived
+  after evaluation to fit the Kaggle scratch disk (disclosed in the eval run
+  notes), so their footprint cells stay `—`.
 - Bundle status: `partial` (human audit pending; attacks not run; MCQ arm
   re-scored from cached generations after the letter-gold fix — original run
   preserved).
@@ -386,19 +393,22 @@ eval → attacks → eval-attacks → report → publish`, writing manifests und
 report bundle is the only source for this article's numbers.
 
 <!-- ARTICLE:ARTIFACTS -->
-Publish state at submission (2026-11-16): the public HF datasets below are
-staged and dry-run-verified (`cg publish --dry-run`: 6 datasets, 0 models —
-model checkpoints were archived after evaluation to fit the Kaggle scratch
-disk, so no model repo is published; the eval manifests and metrics are the
-evidence). Run `cg publish` to create the dataset repos, then deploy the Space.
+Publish state at submission (2026-11-16, `cg publish` run `publish-1794804756`):
+**6 public datasets and 3 model repos are live** (collections
+"CircuitGraft Models" / "CircuitGraft Datasets & Artifacts"). Most variant
+checkpoints were archived after evaluation to fit the Kaggle scratch disk and
+are therefore not published; the drifted model, the LoRA adapter and the
+primary `cg_project` graft **are** public, and the published `cg_project`
+manifest names the exact evaluated run (`cg_project-c8e590934ca7b172` — the
+same run id the eval summary points at).
 
 | Deliverable | Link / value |
 |---|---|
-| Code commit | `<!-- ARTICLE:CODE_COMMIT -->` |
+| Code commit | `35a9ca1a40b2233e2c4fc3e2bf5d769bf4308dab` |
 | Frozen preregistration commit | `edee9eb` (last commit touching `docs/PREREGISTRATION.md` before the Phase 4 run; deviations discovered during reporting are appended to §10, never edited in) |
 | S9 report run | `results/s9/report-1794803399/summary.json` |
-| Model collection | not published — checkpoints archived after evaluation (disclosed in the eval run notes); `artifacts/eval/*/summary.json` + manifests are the evidence |
-| Dataset collection | pending publish (staged, dry-run verified): `dubeydevansh/circuitgraft-med-sft-curated`, `-safety-pairs`, `-domain-pairs`, `-med-sensitive-eval`, `-circuits`, `-eval-logs` |
+| Model collection | https://huggingface.co/collections/dubeydevansh/circuitgraft-models-6afa7a5d7e17226835c76a9f — published: `dubeydevansh/circuitgraft-tinyaya-med-drifted` (merged), `dubeydevansh/circuitgraft-tinyaya-med-cg-project` (merged graft, carries `graft_stats.json` + manifest), `dubeydevansh/circuitgraft-tinyaya-med-lora` (adapter). Other variants: archived, not published (disclosed) |
+| Dataset collection | https://huggingface.co/collections/dubeydevansh/circuitgraft-datasets-and-artifacts-6af08216276001ae81874d98 — `circuitgraft-med-sft-curated`, `-safety-pairs`, `-domain-pairs`, `-med-sensitive-eval`, `-circuits` (circuit scores/faithfulness/overlap at every sparsity), `-eval-logs` (S9 bundles incl. `report-1794803399`) |
 | Gradio Space | pending deploy — `space/` (Gradio SDK), deploy per `space/README.md` |
 | Hardware / stack | GPU stages: Kaggle T4 (14.56 GiB usable), single idempotent notebook; MCQ re-score: local workstation, CPU-only. torch 2.11.0+rocm7.14, transformers 5.22.1, peft 0.21.2, trl 1.14.2, safetune 0.1.12, circuitkit 0.2.0, auditkit 1.1.3, curatorkit 0.1.22, huggingface_hub 1.33.0 (from the eval manifest) |
 <!-- /ARTICLE:ARTIFACTS -->
@@ -434,9 +444,14 @@ our knowledge” and limited to what the experiments actually show.
       disclosed (header, §3, §6, §8): human audit pending, attacks not run.
 - [x] Main table includes every method actually run; missing evaluations are
       `—` with the reason stated (footprints, attack columns).
-- [ ] Public artifact links resolve (run `cg publish`, deploy `space/`, then
-      fill the Dataset/Space rows and `CODE_COMMIT`).
+- [x] Public artifact links resolve: 6 datasets + 3 model repos live on HF
+      (collections linked in §10); Space deploy is the remaining optional
+      step (`space/`, per its README).
 - [x] Abstract is under 500 words and contains no number absent from the S9
       bundle and its pointed-to artifacts.
-- [ ] Reproduction command and commit SHA match the bundle manifest (fill
-      `<!-- ARTICLE:CODE_COMMIT -->` with the final submission commit).
+- [x] Reproduction command and commit SHA match the bundle manifest:
+      submission commit `35a9ca1a40b2233e2c4fc3e2bf5d769bf4308dab`. The report
+      manifest (finished 2026-11-16T04:30:08Z) records the immediately
+      pre-commit tree (`f43a0d2`, dirty) because a generated bundle cannot
+      contain its own future commit; the manifest's input/output hashes pin
+      the exact artifacts regardless.
