@@ -1,0 +1,46 @@
+{
+  "stage": "report",
+  "run_id": "report-1794803399",
+  "config_hash": "report",
+  "git_sha": "f43a0d29bbe8b800a9c1e115c196fd66e5ebed0b",
+  "git_dirty": true,
+  "inputs": {
+    "artifacts\\discover\\discover-6b120d61758287f6\\overlap.json": "5332015e708a9ef24cad00b15ba56d361b974ea02c80449490c502e22ba893dd",
+    "artifacts\\eval\\eval-rescored-20261116-042341\\summary.json": "f88b5b983459213cab228672e9693dfb984675b55d75fc06db41158e7bd8adc2"
+  },
+  "outputs": {
+    "results\\s9\\report-1794803399\\summary.json": "59c073accc2bffddc17b7148861678f7043d902cd2963aa922f31a1249784629",
+    "results\\s9\\report-1794803399\\pareto_frontier.png": "b9187fd5b5a040698395b919ca1b78444f2f9034128f7a9fb283720814e857cd",
+    "results\\s9\\report-1794803399\\circuit_overlap_heatmap.png": "81fb76da215cd21b7357dffe9ef2f7cd08d13ded486a8c7a4504ea55e13628e2",
+    "results\\s9\\report-1794803399\\table_main.md": "d67a1b37f61c31bacffdfd7d349e7fa3902adff3d1ab231379cfdc6431a460c7",
+    "results\\s9\\report-1794803399\\table_attacks.md": "025e0c68b659dd2537297d9e60f08052d96d54b747fd21bd022861ef5edf7ebd",
+    "results\\s9\\report-1794803399\\table_overlap.md": "0b0fdbe655fa20484976d3198da242dfe21e948ab4ba7eb72033af3621b5604d",
+    "results\\s9\\report-1794803399\\summary.md": "c3c6a29f615615fe9af9b0b943426211b3ae9842da44fbad4a0f9b0e3fa7066f"
+  },
+  "library_versions": {
+    "torch": "2.11.0+rocm7.14.0a20260612",
+    "transformers": "5.22.1",
+    "datasets": "5.1.0",
+    "accelerate": "1.15.0",
+    "peft": "0.21.2",
+    "trl": "1.14.2",
+    "safetune": "0.1.12",
+    "circuitkit": "0.2.0",
+    "auditkit": "1.1.3",
+    "curatorkit": "0.1.22",
+    "transformer_lens": "unknown",
+    "huggingface_hub": "1.33.0",
+    "safetensors": "0.8.0",
+    "numpy": "2.5.4"
+  },
+  "seed": null,
+  "started_at": "2026-11-16T04:30:08.256448+00:00",
+  "finished_at": "2026-11-16T04:30:08.291472+00:00",
+  "wall_clock_s": null,
+  "platform": "Windows-10-10.0.19045-SP0",
+  "python": "3.12.15",
+  "device": "cuda",
+  "gpu": "AMD Radeon RX 6600",
+  "status": "partial",
+  "notes": "eval summary is partial; human audit is pending review; no S8 attack statistics found (run `cg attack ...`)"
+}

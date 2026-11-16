@@ -222,6 +222,21 @@ def test_generate_main_results_table() -> None:
     assert "88.0% [82.0%, 93.0%]" in table
 
 
+def test_fmt_scales_ratios_beyond_one() -> None:
+    # Regression: composite ratios can legitimately fall outside [-1, 1]
+    # (e.g. SRR -3.22 when the G-drift gate fails and the denominator is
+    # tiny). The old _fmt heuristic skipped the x100 scaling for |num| > 1
+    # and rendered SRR -3.22 as "-3.2%" instead of "-322.2%".
+    from circuitgraft.report.tables import _fmt
+
+    assert _fmt(-3.222213, pct=True) == "-322.2%"
+    assert _fmt(-31.444339, pct=True) == "-3144.4%"
+    assert _fmt(-1.428575, pct=True) == "-142.9%"
+    assert _fmt(0.767, pct=True) == "76.7%"
+    assert _fmt(0.0, pct=True) == "0.0%"
+    assert _fmt(None, pct=True) == "—"
+
+
 def test_generate_attack_robustness_table() -> None:
     attack_matrix: list[dict[str, Any]] = [
         {

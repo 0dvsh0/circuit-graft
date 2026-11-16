@@ -1,0 +1,2 @@
+| Model / Method | Clean HRR | Abliteration HRR | Harmful-FT (50 st) | Harmful-FT (100 st) | Harmful-FT (200 st) | Quant NF4 HRR | Circuit-Quant 4b HRR |
+| --- | --- | --- | --- | --- | --- | --- | --- |

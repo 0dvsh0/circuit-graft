@@ -36,6 +36,14 @@ def main() -> int:
         default="dubeydevansh/circuitgraft-phase4-cloud",
         help="Private dataset repo holding the cloud run artifacts",
     )
+    parser.add_argument(
+        "--include",
+        action="append",
+        default=None,
+        metavar="PATTERN",
+        help="Only download paths matching this glob (repeatable), e.g. "
+        "'results/generations/**'. Default: everything in the dataset.",
+    )
     args = parser.parse_args()
 
     token = os.environ.get("HF_TOKEN")
@@ -49,6 +57,7 @@ def main() -> int:
         repo_type="dataset",
         local_dir=str(REPO_ROOT),
         token=token,
+        allow_patterns=args.include,
     )
 
     # Report what arrived.

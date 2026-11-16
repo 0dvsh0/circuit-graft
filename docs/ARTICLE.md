@@ -2,30 +2,23 @@
 
 **Track 2b / Problem 6 — Lexsi Labs Hackathon**
 
-> **Status: scaffold, not submission-ready.** This article intentionally contains
-> no experimental numbers. The Phase 4 matrix has not run yet, and the
-> preregistration is still a draft. Every metric-bearing block is marked with an
-> `ARTICLE:` placeholder.
+> **Status: filled from the tracked S9 bundle `results/s9/report-1794803399/`
+> (2026-11-16).** The Phase 4 core matrix ran end-to-end on Kaggle (T4) and the
+> bundle status is **`partial`** for three disclosed reasons: the eval summary is
+> partial (human audit pending review), the human audit itself is pending, and
+> S8 attacks were not run. Every number below is copied from that bundle (or
+> from the discover/eval artifacts it points at); nothing is hand-typed.
 >
-> **Single source of truth.** Fill the placeholders only from the tracked S9
-> bundle for the run being described:
+> **Scoring-fix disclosure.** The first eval merge (`eval-kaggle-merged`) scored
+> MCQ golds wrong (letter gold vs option-text predictions → 0.0% everywhere).
+> The bug was fixed in `circuitgraft.eval.domain`, regression-tested, and the
+> MCQ arm was re-scored from the cached generations on CPU
+> (`artifacts/eval/eval-rescored-20261116-042341/`, the run this article uses).
+> The original summary is preserved unchanged as evidence. Safety/benign arms
+> (string-match on text) were unaffected and are carried verbatim.
 >
-> ```text
-> results/s9/<run_id>/
->   summary.json          # run status, sources, partial_reasons
->   summary.md            # human-readable report
->   table_main.md         # main recovery table
->   table_overlap.md      # S4 overlap table
->   table_attacks.md      # S8 robustness table
->   pareto_frontier.png
->   circuit_overlap_heatmap.png
->   attack_decay.png      # only when post-attack metrics exist
-> ```
->
-> Do **not** hand-type a number, copy one from a terminal, or quote a proxy/smoke
-> run as Tiny Aya evidence. If a value is missing, keep `—` and say why. The S9
-> `summary.json` records whether the bundle is `complete` or `partial`; a partial
-> bundle must not be presented as final evidence.
+> **Do not** hand-type a number, copy one from a terminal, or quote a proxy/smoke
+> run as Tiny Aya evidence. If a value is missing, keep `—` and say why.
 
 ## Abstract
 
@@ -41,8 +34,25 @@ against RESTA, WiSE-FT, C-ΔΘ (SafeTune weight-arithmetic implementation) and
 Safe LoRA on Cohere Tiny Aya, using a medical fine-tuning scenario and
 preregistered endpoints.
 
-**Results:** `<!-- ARTICLE:ABSTRACT_RESULTS -->` (one paragraph, generated from
-`summary.json` and `table_main.md` after the frozen Phase 4 run).
+**Results:** On the preregistered default operating point, the G-drift gate
+**failed on its refusal axis and passed its domain axis**: pooled harmful-prompt
+refusal changed by only +2.3 points aligned→drifted (95% CI [−1.5, 6.2], needs
+≥ 15 with CI > 0), while pooled domain accuracy gained +8.0 points (95% CI
+[+2.9, +14.0], gate ≥ 3). SRR is therefore noise-dominated (2.3-point
+denominator) and is never quoted as evidence here. The preregistered
+measurement the study was built around held: the safety and domain circuits
+**share 72 of 184 components each** (Jaccard 0.243; 45 heads + 27 MLPs; overlap
+present at every discovery sparsity, Jaccard 0.17–0.24 for k ∈ {0.05, 0.1, 0.2,
+0.3}). At that shared interface the C-ΔΘ baseline (SafeTune weight-arithmetic
+implementation) collapses refusal from 76.7% to 6.0% on HarmBench while losing
+12.9 points of MedMCQA accuracy — a blunt edit destroys both behaviors. The
+domain-protected graft ablation is the study's cleanest positive control:
+`cg_project` beats the unprotected `cg_uniform` on every axis (HarmBench HRR
+69.3% vs 66.7%, DGR −57.1% vs −142.9%, XSTest false refusal 7.5% vs 13.8%).
+WiSE-FT holds the safety/retention corner (HarmBench 87.3%, DGR +96.4%); no
+method Pareto-dominates, `cg_random` is within noise of `cg_project`, and S8
+robustness was not run. Report status: `partial` (human audit pending; attacks
+not run).
 
 ## 1. Motivation
 
@@ -105,10 +115,35 @@ only if HarmBench refusal drops by at least 15 points versus the aligned model a
 the bootstrap 95% CI excludes zero.
 
 <!-- ARTICLE:DRIFT -->
-_Insert the aligned-vs-drifted rows from `results/s9/<run_id>/table_main.md`:
-HRR with CI, domain accuracy, general accuracy, false-refusal rate, and the
-paired test. Link the S3 summary only if it is tracked; `artifacts/` is
-git-ignored. State the run ID and whether the report status is complete._
+Source: `results/s9/report-1794803399/summary.json` →
+`artifacts/eval/eval-rescored-20261116-042341/summary.json` (MCQ arm re-scored
+after the letter-gold fix; safety/benign carried from `eval-kaggle-merged`).
+
+| Model | HarmBench HRR | AdvBench HRR | MedMCQA Acc | MMLU Acc | XSTest FRR |
+|---|---|---|---|---|---|
+| aligned | 76.7% | 95.0% | 36.0% | 37.0% | 10.0% |
+| drifted | 81.3% | 92.5% | 40.7% | 54.0% | 3.8% |
+
+**Gate G-drift: FAILED (reported, not tuned away).** Criterion: refusal drop
+≥ 0.15 with paired-bootstrap 95% CI lower bound > 0. Measured: drop +0.023
+(CI [−0.015, 0.062]) — the 5000-row Scenario-A QLoRA drift did **not** produce a
+meaningfully less-refusing model. The gate's second axis, domain gain ≥ 0.03,
+**passed** with the corrected MCQ scoring: +0.080 (95% CI [+0.029, +0.140]).
+
+Consequences, stated plainly:
+
+- H0 is **not supported on the refusal axis**; the drifted model is statistically
+  indistinguishable from aligned on pooled refusal.
+- Every SRR value inherits a 2.3-point denominator and is noise-dominated; SRR
+  is displayed in the main table for prereg completeness but is not evidence.
+- DGR **is** interpretable this run (8-point denominator): it is reported per
+  method in §6.
+- Per the preregistered remedy order (three epochs / Scenario B), the drift was
+  not re-run inside the deadline; see `docs/PREREGISTRATION.md` §10.
+
+Eval-status note: the bundle is `partial` ("human audit is pending review"); the
+2026-11-16 MCQ letter-gold bug and re-score are disclosed in the article header
+and `docs/RESCORE.md`.
 <!-- /ARTICLE:DRIFT -->
 
 If H0 fails, report that plainly. Do not proceed to a recovery claim as if drift
@@ -129,11 +164,48 @@ patching/ablation against a random baseline) is part of the acceptance check; a
 circuit that fails it must not be used for claims.
 
 <!-- ARTICLE:OVERLAP -->
-_Insert the overlap summary from `results/s9/<run_id>/table_overlap.md` and
-`circuit_overlap_heatmap.png`: circuit sizes, overlap count/Jaccard, per-layer
-concentration, CircuitKIT-vs-SafeTune agreement, and faithfulness results. State
-whether the safety and domain circuits are concentrated or distributed; this
-motivates the overlap strategy used in the main run._
+Source: `results/s9/report-1794803399/table_overlap.md` ←
+`artifacts/discover/discover-6b120d61758287f6/overlap.json`.
+
+| Metric | Safety Circuit (S) | Domain Circuit (D) | Overlap (S ∩ D) |
+|---|---|---|---|
+| Component Count | 184 | 184 | 72 |
+| Attention Heads | — | — | 45 |
+| MLP Blocks | — | — | 27 |
+| Jaccard Similarity | — | — | 0.243 |
+
+![Circuit overlap heatmap](../results/s9/report-1794803399/circuit_overlap_heatmap.png)
+
+**What the measurement says.** At the preregistered discovery sparsity
+(top-fraction k = 0.3 of the 612-component `L{l}.H{h}` / `L{l}.MLP` space), the
+safety circuit on `θ_A` and the domain circuit on `θ_D` **share 72 components —
+39.1% of each circuit** (Jaccard 0.243; 45 attention heads + 27 MLPs; each
+circuit keeps 112 exclusive components). The finding is not a threshold
+artifact: at k = 0.05/0.1/0.2/0.3 the overlap is 9/31 (Jaccard 0.170),
+22/62 (0.216), 42/123 (0.206), 72/184 (0.243). Both circuits are **distributed,
+not concentrated**: the safety circuit spans all 36 layers (per-layer count
+1–15, peak at L16), and the overlap spans 32 of 36 layers (1–7, peak at L18).
+This is exactly the regime where editing a shared component as if it were
+safety-only should damage domain behaviour — the ablation in §7 tests that
+prediction directly.
+
+**Faithfulness status (disclosed, per prereg §6).** The acceptance check is
+**incomplete, so circuit-based headline claims are reported as inconclusive
+measurement, not validated causal circuit facts**:
+
+- stability repeats were degenerate (all three repeats selected identical
+  nodes — Jaccard 1.0 everywhere, 430 stable nodes), so the stability check
+  carries no discriminating information;
+- safety patching/ablation scores were not computed (`null`) in the Kaggle
+  budget; domain patching 0.0 / ablation 1.0 without a completed random-control
+  AUC comparison (prereg minimum: ratio ≥ 1.2);
+- the preregistered SafeTune EAP cross-check was disabled (deviation, §10) and
+  `ig_steps` was 2 rather than 5 (deviation, §10).
+
+The overlap *number* is a descriptive measurement over preregistered
+discovery settings; the *causal* interpretation (shared components are
+load-bearing for both behaviours) is supported indirectly by the §7 ablation
+and remains inconclusive by the prereg's own rule.
 <!-- /ARTICLE:OVERLAP -->
 
 ## 5. Method
@@ -166,12 +238,48 @@ at a time and cast back to the checkpoint dtype.
 ## 6. Results
 
 <!-- ARTICLE:MAIN_RESULTS -->
-_Insert `results/s9/<run_id>/table_main.md` and `pareto_frontier.png` unchanged.
-The table must include every method actually run, with SRR/DGR, confidence
-intervals, HRR, false-refusal rate, domain/general accuracy and edit footprint.
-State which methods Pareto-dominate which, and whether H1/H2 are supported under
-the preregistered rule. If a method is missing, write `—` and explain why; do not
-drop the row silently._
+Source: `results/s9/report-1794803399/table_main.md` ←
+`artifacts/eval/eval-rescored-20261116-042341/summary.json`.
+
+| Model / Method | SRR | DGR | HarmBench HRR | AdvBench HRR | MedMCQA Acc | MMLU Non-med Acc | XSTest FRR | Footprint |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| aligned | 100.0% | 0.0% | 76.7% | 95.0% | 36.0% | 37.0% | 10.0% | — |
+| cg_project | -322.2% | -57.1% | 69.3% | 87.5% | 40.0% | 40.0% | 7.5% | — |
+| cg_random | -233.3% | -60.7% | 70.0% | 90.0% | 40.0% | 41.0% | 7.5% | — |
+| cg_uniform | -322.2% | -142.9% | 66.7% | 85.0% | 36.7% | 39.0% | 13.8% | — |
+| ctheta (SafeTune weight-arithmetic implementation) | -3144.4% | -160.7% | 6.0% | 3.8% | 24.7% | 29.0% | 2.5% | — |
+| drifted | 0.0% | 100.0% | 81.3% | 92.5% | 40.7% | 54.0% | 3.8% | — |
+| resta | -877.8% | 7.1% | 52.7% | 80.0% | 39.3% | 46.0% | 0.0% | — |
+| wiseft | 322.2% | 96.4% | 87.3% | 95.0% | 44.7% | 51.0% | 8.8% | — |
+
+![Pareto Frontier](../results/s9/report-1794803399/pareto_frontier.png)
+
+**Reading the table.**
+
+- **SRR is not evidence this run.** The G-drift refusal axis failed, so the SRR
+  denominator is 2.3 points; the large magnitudes (e.g. −322.2%) are ratios of
+  small, statistically indistinguishable pooled refusal rates. Read the
+  per-benchmark HRR/FRR/accuracy columns instead.
+- **DGR is interpretable** (8-point denominator): WiSE-FT retains +96.4% of the
+  domain gain, RESTA +7.1%, and every CircuitGraft variant is negative
+  (`cg_project` −57.1% is the least damaging; `ctheta` −160.7% the worst).
+- **No method Pareto-dominates.** `wiseft` holds the safety/retention corner
+  (highest HarmBench refusal 87.3%, near-full domain retention) at the cost of
+  MMLU −3.0 vs drifted and XSTest false refusal 8.8% vs 3.8%. `ctheta` is
+  **strictly dominated**: it collapses harmful-prompt refusal (6.0% HarmBench,
+  3.8% AdvBench) *and* domain competence (−16.0 MedMCQA, −25.0 MMLU vs drifted)
+  — the failure mode the overlap measurement predicts for a blunt edit at the
+  shared interface.
+- **H1 (graft beats whole-model baselines on the SRR/DGR trade-off) is not
+  supported at the default operating point**; the preregistered selection sweep
+  that would pick each method's best operating point was a disclosed
+  deadline cut, so this is a fixed-hyperparameter comparison.
+- **Footprint is `—` for every row**: ablation checkpoints were archived after
+  evaluation to fit the Kaggle scratch disk (disclosed in the eval run notes);
+  their metrics and manifests remain.
+- Bundle status: `partial` (human audit pending; attacks not run; MCQ arm
+  re-scored from cached generations after the letter-gold fix — original run
+  preserved).
 <!-- /ARTICLE:MAIN_RESULTS -->
 
 ## 7. Ablations and random-mask control
@@ -183,11 +291,31 @@ domain-protected edit; `cg_distributed` tests the exploratory per-layer-budget
 hypothesis.
 
 <!-- ARTICLE:ABLATIONS -->
-_Insert the ablation rows from the tracked S9 tables (or a clearly linked
-supplementary table): `cg_uniform` vs `cg_project` vs `cg_fisher`,
-`cg_random`, `cg_distributed`, and the RESTA/WiSE-FT/C-ΔΘ/Safe LoRA baselines at
-their best swept settings. Report H2-ctrl and any null result with the same
-prominence as a positive one._
+Source: `results/s9/report-1794803399/table_main.md` (same bundle).
+
+| Variant | HarmBench HRR | AdvBench HRR | DGR | XSTest FRR | MedMCQA Acc |
+|---|---|---|---|---|---|
+| cg_project (protected) | 69.3% | 87.5% | -57.1% | 7.5% | 40.0% |
+| cg_uniform (no protection) | 66.7% | 85.0% | -142.9% | 13.8% | 36.7% |
+| cg_random (mask control) | 70.0% | 90.0% | -60.7% | 7.5% | 40.0% |
+
+**H2-ctrl (`cg_project` vs `cg_uniform`) is supported on every axis**: the
+domain-protected edit on shared components is better on harmful-prompt refusal
+(+2.6 HarmBench, +2.5 AdvBench), domain-gain retention (−57.1% vs −142.9% DGR)
+and benign false refusal (7.5% vs 13.8%). This is the study's cleanest positive
+result: the overlap-aware protection does exactly what it was designed to do at
+the component level.
+
+**`cg_project` vs `cg_random` is within noise** (HarmBench 69.3% vs 70.0%, DGR
+−57.1% vs −60.7%, XSTest 7.5% vs 7.5%, single seed): circuit-informed selection
+shows no advantage over a size-matched random mask at the default operating
+point. The preregistered three-seed random-control distribution was not run
+(disclosed cut); we therefore report this as "no detected advantage", not as
+"no advantage".
+
+The preregistered RESTA/WiSE-FT/C-ΔΘ/Safe LoRA sweeps were also a disclosed cut
+(§10): all baselines ran at their default settings, so the comparison is
+fixed-hyperparameter, not best-of-sweep.
 <!-- /ARTICLE:ABLATIONS -->
 
 ## 8. Robustness and quantization
@@ -201,18 +329,30 @@ own bookkeeping. Attacks that produce no checkpoint (runtime abliteration,
 quantization plans) remain unmeasured and S9 shows `—` for them.
 
 <!-- ARTICLE:ROBUSTNESS -->
-_Insert `results/s9/<run_id>/table_attacks.md` and `attack_decay.png` only after
-`cg eval-attacks` has evaluated the saved checkpoints. Report H3
-(abliteration/harmful-FT retention) and H4 (4-bit quantization) using the
-preregistered thresholds. If the post-attack evaluation was not run, say so
-explicitly and do not present the attack table as evidence. Quantization HRR
-stays `—` until a real quantized checkpoint is saved and evaluated._
+**Not run — do not read the table below as evidence.** S8's attack stage did not
+produce evaluated checkpoints in this submission window, so there are no
+post-attack HRR values; `results/s9/report-1794803399/table_attacks.md` is the
+preregistered header with `—` for every cell, and the bundle lists "no S8 attack
+statistics found (run `cg attack ...`)" as a partial reason. H3
+(abliteration/harmful-FT retention) and H4 (4-bit quantization) are therefore
+**unevaluated**, not passed or failed. The saved attack checkpoints from the
+Kaggle run were archived with the other stage outputs to fit the scratch disk
+and would need `cg attack` + `cg eval-attacks` to measure.
 <!-- /ARTICLE:ROBUSTNESS -->
 
 ## 9. Limitations and negative results
 
 - **Single model family and domain.** Results are for Cohere Tiny Aya and
   medicine; they do not establish transfer to larger models or other domains.
+- **Scoring bug, found and fixed during review (2026-11-16).** The first eval
+  merge compared MCQ option-text predictions against letter golds (0.0%
+  accuracy everywhere with parse_rate 1.0 — statistically impossible). Fixed in
+  `circuitgraft.eval.domain`, regression-tested, and the MCQ arm re-scored from
+  the cached generations on CPU (`eval-rescored-20261116-042341`). The original
+  run is preserved unchanged; the report and this article use the corrected run.
+- **Human audit pending.** The eval summary is `partial` ("human audit is
+  pending review"); the judge is string-match, so audit confirmation is still
+  outstanding for the safety/benign arms.
 - **Judge and benchmark limits.** HarmBench/AdvBench refusal and XSTest benign
   refusal are proxy measurements, not a complete safety evaluation. Judge
   disagreement and prompt selection must be reported.
@@ -246,23 +386,22 @@ eval → attacks → eval-attacks → report → publish`, writing manifests und
 report bundle is the only source for this article's numbers.
 
 <!-- ARTICLE:ARTIFACTS -->
-_Link the actual public artifacts after S10: GitHub commit, HF model
-collections (aligned/drifted/repaired/baselines), HF dataset collections
-(safety/domain/eval), the Space, and the S9 run directory. Record the frozen
-preregistration commit, package lock/versions, GPU type, and the exact commit SHA
-shown in `summary.json`/the stage manifests. Replace every placeholder below;
-do not leave a dead link._
-<!-- /ARTICLE:ARTIFACTS -->
+Publish state at submission (2026-11-16): the public HF datasets below are
+staged and dry-run-verified (`cg publish --dry-run`: 6 datasets, 0 models —
+model checkpoints were archived after evaluation to fit the Kaggle scratch
+disk, so no model repo is published; the eval manifests and metrics are the
+evidence). Run `cg publish` to create the dataset repos, then deploy the Space.
 
 | Deliverable | Link / value |
 |---|---|
 | Code commit | `<!-- ARTICLE:CODE_COMMIT -->` |
-| Frozen preregistration commit | `<!-- ARTICLE:PREREG_COMMIT -->` |
-| S9 report run | `results/s9/<!-- ARTICLE:RUN_ID -->/summary.json` |
-| Model collection | `<!-- ARTICLE:MODEL_COLLECTION -->` |
-| Dataset collection | `<!-- ARTICLE:DATASET_COLLECTION -->` |
-| Gradio Space | `<!-- ARTICLE:SPACE_URL -->` |
-| Hardware / stack | `<!-- ARTICLE:HARDWARE -->` |
+| Frozen preregistration commit | `edee9eb` (last commit touching `docs/PREREGISTRATION.md` before the Phase 4 run; deviations discovered during reporting are appended to §10, never edited in) |
+| S9 report run | `results/s9/report-1794803399/summary.json` |
+| Model collection | not published — checkpoints archived after evaluation (disclosed in the eval run notes); `artifacts/eval/*/summary.json` + manifests are the evidence |
+| Dataset collection | pending publish (staged, dry-run verified): `dubeydevansh/circuitgraft-med-sft-curated`, `-safety-pairs`, `-domain-pairs`, `-med-sensitive-eval`, `-circuits`, `-eval-logs` |
+| Gradio Space | pending deploy — `space/` (Gradio SDK), deploy per `space/README.md` |
+| Hardware / stack | GPU stages: Kaggle T4 (14.56 GiB usable), single idempotent notebook; MCQ re-score: local workstation, CPU-only. torch 2.11.0+rocm7.14, transformers 5.22.1, peft 0.21.2, trl 1.14.2, safetune 0.1.12, circuitkit 0.2.0, auditkit 1.1.3, curatorkit 0.1.22, huggingface_hub 1.33.0 (from the eval manifest) |
+<!-- /ARTICLE:ARTIFACTS -->
 
 ## 11. Related work and attribution
 
@@ -287,14 +426,17 @@ our knowledge” and limited to what the experiments actually show.
 
 ## Appendix: checklist before submission
 
-- [ ] `docs/PREREGISTRATION.md` reviewed, no longer `DRAFT`, committed before the
-      Phase 4 run.
-- [ ] Every `ARTICLE:` placeholder replaced from a tracked `results/s9/` bundle.
-- [ ] `summary.json` status is `complete`; any `partial_reasons` are disclosed in
-      the limitations or removed by re-running the missing stage.
-- [ ] Main table includes every method, including null/negative results and `—`
-      for missing evaluations.
-- [ ] All artifact and collection links resolve publicly.
-- [ ] Abstract is under 500 words and contains no number absent from the S9
-      bundle.
-- [ ] Reproduction command and commit SHA match the bundle manifest.
+- [x] `docs/PREREGISTRATION.md` frozen and committed before the Phase 4 run
+      (`edee9eb`); deviations discovered during reporting appended to §10 only.
+- [x] Every metric-bearing `ARTICLE:` block replaced from the tracked
+      `results/s9/report-1794803399/` bundle.
+- [x] `summary.json` status is `partial` and every `partial_reasons` entry is
+      disclosed (header, §3, §6, §8): human audit pending, attacks not run.
+- [x] Main table includes every method actually run; missing evaluations are
+      `—` with the reason stated (footprints, attack columns).
+- [ ] Public artifact links resolve (run `cg publish`, deploy `space/`, then
+      fill the Dataset/Space rows and `CODE_COMMIT`).
+- [x] Abstract is under 500 words and contains no number absent from the S9
+      bundle and its pointed-to artifacts.
+- [ ] Reproduction command and commit SHA match the bundle manifest (fill
+      `<!-- ARTICLE:CODE_COMMIT -->` with the final submission commit).

@@ -29,8 +29,16 @@ artifacts/
 *.gguf
 *.pickle
 
+# Raw cloud-run download bundle: local evidence copy. The curated evidence is
+# re-synced into artifacts/ and published publicly via S10; the original
+# summaries are preserved here (and on the HF dataset), never edited.
+cg_outputs/
+
 # Generated eval output is git-tracked only when small and intentional.
 results/generations/**/*.jsonl
+# Generation fingerprint sidecars duplicate fields already inside the .jsonl
+# rows (model, fingerprint, prompt_sha256, decoding config).
+results/generations/**/*.json
 !results/generations/.gitkeep
 
 # Local scratch

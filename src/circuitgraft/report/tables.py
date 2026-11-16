@@ -20,7 +20,13 @@ def _fmt(val: Any, pct: bool = False, digits: int = 1) -> str:
     try:
         num = float(val)
         if pct:
-            num = num * 100.0 if abs(num) <= 1.0 and num != 0.0 else num
+            # Every value reaching this formatter is stored as a fraction or
+            # ratio (HRR 0.767, SRR -3.22, DGR -1.43): percentages are the
+            # display convention only. An earlier heuristic skipped the
+            # scaling for |num| > 1, which silently corrupted composite
+            # ratios outside [-1, 1] (e.g. SRR -3.22 rendered as -3.2%
+            # instead of -322.2%).
+            num = num * 100.0
             return f"{num:.{digits}f}%"
         return f"{num:.{digits}f}"
     except (TypeError, ValueError):

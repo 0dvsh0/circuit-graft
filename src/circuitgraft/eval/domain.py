@@ -48,8 +48,18 @@ def parse_answer(
     if choices and not _is_letter_choices(choices):
         lowered = text.lower()
         match = _WORD_ANSWER_RE.search(lowered)
-        if match and match.group(1) in choices:
-            return {"answer": match.group(1), "method": "answer_word"}
+        if match:
+            word = match.group(1)
+            if word in choices:
+                return {"answer": word, "method": "answer_word"}
+            # The prompt says "Answer with the correct option letter", so a
+            # model may answer with the letter even when the stored choices
+            # are the option texts. Resolve the letter through the choices
+            # list instead of falling through to the (noisy) substring scan.
+            if len(word) == 1 and word.upper() in "ABCD":
+                index = "ABCD".index(word.upper())
+                if index < len(choices):
+                    return {"answer": choices[index], "method": "answer_letter"}
         for choice in sorted(choices, key=len, reverse=True):
             if re.search(rf"\b{re.escape(choice.lower())}\b", lowered[:120]):
                 return {"answer": choice, "method": "choice_word"}
@@ -65,15 +75,33 @@ def parse_answer(
 
 
 def expected_answer(row: Mapping[str, Any]) -> str | None:
+    """Gold answer in the same format the parser predicts.
+
+    Eval rows store ``choices`` as the option texts and ``answer`` either as an
+    option index, a letter ("A".."D") or a word ("yes"). Every MCQ builder also
+    stores the authoritative ``answer_idx``; resolving a letter answer through
+    it keeps predictions (choice texts) comparable with the gold value. This
+    was the silent all-zero-accuracy bug in the first Kaggle eval: a letter
+    gold was compared against predicted option texts and never matched.
+    """
     answer = row.get("answer")
     if answer is None:
         return None
+    choices = row.get("choices")
+    texts = [str(choice) for choice in choices] if choices else []
     if isinstance(answer, int):
-        choices = row.get("choices")
-        if choices and 0 <= answer < len(choices):
-            return str(choices[answer])
+        if texts and 0 <= answer < len(texts):
+            return texts[answer]
         return chr(ord("A") + answer)
-    return str(answer).strip()
+    index = row.get("answer_idx")
+    if isinstance(index, int) and texts and 0 <= index < len(texts):
+        return texts[index]
+    text = str(answer).strip()
+    if len(text) == 1 and text.upper() in "ABCD" and texts and not _is_letter_choices(texts):
+        position = "ABCD".index(text.upper())
+        if position < len(texts):
+            return texts[position]
+    return text
 
 
 def score_item(
@@ -131,7 +159,9 @@ def aggregate_items(
     outcomes = [1.0 if item["correct"] else 0.0 for item in items]
     lower, upper = bootstrap_ci(outcomes, n_resamples=n_resamples, ci=ci, seed=seed)
     parse_failures = sum(
-        1 for item in items if item.get("predicted") is None or item.get("parse_method") == "unparsed"
+        1
+        for item in items
+        if item.get("predicted") is None or item.get("parse_method") == "unparsed"
     )
     methods: dict[str, int] = {}
     for item in items:
@@ -170,8 +200,7 @@ def score_mcq_rows(
     if missing:
         raise ValueError(f"missing generation rows for ids: {missing[:5]}")
     items = [
-        score_item(row, by_id[str(row.get("id"))], fallback_logit=fallback_logit)
-        for row in rows
+        score_item(row, by_id[str(row.get("id"))], fallback_logit=fallback_logit) for row in rows
     ]
     metrics = aggregate_items(items, n_resamples=n_resamples, ci=ci, seed=seed)
     return {**metrics, "items": items}

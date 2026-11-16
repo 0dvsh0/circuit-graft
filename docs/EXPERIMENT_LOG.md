@@ -1399,3 +1399,85 @@ local verified snapshot; `merge_summaries` is unit-checked on synthetic staged
 summaries; the generated notebook has 32 cells and all Python cells compile.
 No GPU stage has run from these changes yet - the next evidence must come from
 the Kaggle log, not from this entry.
+
+## 2026-11-16 - Phase 4 core matrix landed on Kaggle; MCQ scoring bug found and fixed
+
+**What ran (Kaggle T4, single notebook, finished 03:28 UTC):** the full core
+matrix (aligned, drifted, cg_project, cg_uniform, cg_random, resta, wiseft,
+ctheta) x 11 eval sets, string-match judge, McNemar + Holm. Evidence bundle
+downloaded to `cg_outputs/` and synced into the repo (`artifacts/eval/
+eval-kaggle-merged`, `artifacts/discover/discover-6b120d61758287f6`,
+`artifacts/report/report-1794799708`). The S9 report bundle says
+`status: partial` (human audit pending, no S8 attacks).
+
+**Gates:** G1 passed (data snapshot). **G-drift FAILED**: pooled refusal drop
+aligned->drifted is +0.023 (needs >= 0.15 with CI > 0) and the pooled domain
+gain is +0.020 (needs >= 0.03). The 5000-row drift did not produce a meaningfully
+less-refusing model, so SRR denominators are ~2 points and every SRR value is
+noise-dominated. cg_project SRR = -3.2% (the graft reduced pooled refusal below
+the drifted baseline); cg_random = -2.3%. At the default operating point the
+circuit selection shows no advantage over random components. The one dramatic,
+true contrast: ctheta (naive weight arithmetic) collapses refusal to 3.6%
+pooled (6.0% HarmBench) while the CircuitGraft edits stay in a sane regime.
+
+**Bug (fixed in src/circuitgraft/eval/domain.py, commit pending):** every
+MedMCQA/MedQA/MMLU accuracy in the Kaggle summary is exactly 0.0 with
+parse_rate 1.0 across all 8 models - statistically impossible. Root cause:
+eval rows store `choices` as option texts and `answer` as a letter ("B");
+`expected_answer` only resolved integer golds through choices and returned the
+raw letter for string golds, while every prediction (`logit_answer`,
+`choice_word`) is the full option text. Letter gold never matched text
+predictions. PubMedQA worked because its gold words equal its choice strings.
+Fix: `expected_answer` resolves letter golds through the authoritative
+`answer_idx`; `parse_answer` resolves an explicit "Answer: <letter>" to the
+choice text when choices are texts. Regression tests added in
+tests/test_eval.py (16 passed).
+
+**Consequence for the run:** the MCQ arm of eval-kaggle-merged is invalid; the
+safety/benign arm (string-match on text) is unaffected. DGR was therefore
+undefined for all models and the domain half of the Pareto is missing from the
+summary. `scripts/rescore_eval.py` rebuilds the MCQ arm from the cached
+generations (CPU only, no model load, no re-generation) into a new
+`artifacts/eval/eval-rescored-<stamp>/` run; `cg report` then resolves it as
+the newest eval run. The source summary is kept verbatim; nothing is edited in
+place.
+
+**Action needed to finish:** download `results/generations/**` from the Kaggle
+dataset (the bundle `cg_outputs/` contains only summaries, not generations),
+run the rescore, re-run `cg report`, then refresh article/Space/README blocks
+from the corrected bundle. Human-audit review of the pair CSVs (330 + 306
+rows) is still pending; the safety-pair generation fell back to neutralization
+for ~1.8k rows because of Cohere trial-key rate limits (logged in the data
+summary).
+
+### 2026-11-16 rescore results (same day, hours later)
+
+The generations were pulled with the new
+`import_cloud_artifacts.py --include "results/generations/**"` filter (88
+JSONL files, 8 models × 11 benchmarks, ~15.5 MB) and the rescore ran on CPU in
+under a minute → `artifacts/eval/eval-rescored-20261116-042341/`. Corrected
+headline numbers:
+
+- **G-drift gate: still FAILED overall, but the failure is now precise.** The
+  refusal-drop axis fails (drop +0.023, CI [−0.015, +0.062]); the
+  domain-gain axis **passes**: +0.080 (CI [+0.029, +0.140]) vs the ≥0.03 gate.
+  DGR is therefore defined for every model (it was undefined under the buggy
+  scorer): wiseft +96.4%, resta +7.1%, cg_project −57.1%, cg_random −60.7%,
+  cg_uniform −142.9%, ctheta −160.7%.
+- The protected-edit ablation is a clean all-axes win for `cg_project` over
+  `cg_uniform`: HarmBench 69.3% vs 66.7%, AdvBench 87.5% vs 85.0%, DGR −57.1%
+  vs −142.9%, XSTest FRR 7.5% vs 13.8%. `cg_random` is within noise of
+  `cg_project` (single seed).
+- ctheta double-collapse confirmed: 6.0% HarmBench refusal AND −16.0 MedMCQA /
+  −25.0 MMLU vs drifted.
+
+**Second bug found and fixed during the report refresh:** the S9 table
+formatter (`circuitgraft.report.tables._fmt`) skipped the ×100 percentage
+scaling for stored ratios with |v| > 1, so SRR −3.2222 displayed as "−3.2%"
+and DGR −1.4286 as "−1.4%" — off by 100× on exactly the out-of-range composites
+this run produces (tiny SRR denominator). Stored artifacts were always correct;
+only rendered report tables were wrong. Fixed with a regression test; all S9
+tables and README blocks regenerated
+(`results/s9/report-1794803399/`; the intermediate mis-rendered bundle was
+deleted). Article, presentation playbook and runbook updated to the corrected
+numbers.

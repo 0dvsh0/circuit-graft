@@ -15,7 +15,12 @@ from circuitgraft.eval.auditkit_runs import (
     run_mcq_audit,
     run_redteam_probes,
 )
-from circuitgraft.eval.domain import aggregate_items, parse_answer, score_mcq_rows
+from circuitgraft.eval.domain import (
+    aggregate_items,
+    expected_answer,
+    parse_answer,
+    score_mcq_rows,
+)
 from circuitgraft.eval.models import resolve_checkpoint
 from circuitgraft.eval.pipeline import run_eval
 from circuitgraft.eval.safety import (
@@ -61,6 +66,59 @@ def test_parse_answer_prefers_explicit_span() -> None:
         "method": "answer_letter",
     }
     assert parse_answer("The answer is C.", ["A", "B", "C"])["answer"] == "C"
+
+
+def test_parse_answer_resolves_letter_against_text_choices() -> None:
+    # The MCQ prompt asks for the option letter, but rows store the option
+    # texts as choices; an explicit "Answer: B" must resolve to that text.
+    choices = ["insulin", "metformin", "glipizide", "pioglitazone"]
+    assert parse_answer("Answer: B", choices) == {
+        "answer": "metformin",
+        "method": "answer_letter",
+    }
+
+
+def test_expected_answer_resolves_letter_against_text_choices() -> None:
+    # Regression for the all-zero MCQ accuracy in the first Kaggle eval: a
+    # letter gold was compared against predicted option texts and never
+    # matched, so every model scored exactly 0.0 with parse_rate 1.0.
+    row = {
+        "choices": ["insulin", "metformin", "glipizide", "pioglitazone"],
+        "answer": "B",
+        "answer_idx": 1,
+    }
+    assert expected_answer(row) == "metformin"
+    assert expected_answer({**row, "answer_idx": 0, "answer": "A"}) == "insulin"
+    # Word golds (PubMedQA) and letter-choice rows keep working.
+    assert expected_answer({"choices": ["yes", "no"], "answer": "yes"}) == "yes"
+    assert expected_answer({"choices": ["A", "B"], "answer": "B"}) == "B"
+
+
+def test_score_mcq_rows_with_text_choices_and_letter_gold() -> None:
+    rows = [
+        {
+            "id": "1",
+            "benchmark": "medmcqa_validation",
+            "choices": ["insulin", "metformin", "glipizide", "pioglitazone"],
+            "answer": "B",
+            "answer_idx": 1,
+        },
+        {
+            "id": "2",
+            "benchmark": "medmcqa_validation",
+            "choices": ["insulin", "metformin", "glipizide", "pioglitazone"],
+            "answer": "A",
+            "answer_idx": 0,
+        },
+    ]
+    generations = [
+        {"id": "1", "response": "", "logit_answer": "metformin"},
+        {"id": "2", "response": "Answer: A", "logit_answer": None},
+    ]
+    scored = score_mcq_rows(rows, generations, n_resamples=20)
+    assert scored["accuracy"] == pytest.approx(1.0)
+    assert scored["parse_failure_rate"] == pytest.approx(0.0)
+    assert scored["parse_methods"] == {"logit": 1, "answer_letter": 1}
 
 
 def test_parse_answer_words_and_think_blocks() -> None:
