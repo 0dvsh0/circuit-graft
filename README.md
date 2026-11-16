@@ -30,7 +30,7 @@ The goal is to recover safety without throwing away domain competence.
 | S1 data curation (CuratorKIT SFT, eval sets, pairs, decontamination) | implemented, unit-tested |
 | S2 Drift, S3 Audit, S5 Baselines, S7 Eval, S8 Attacks (+ S8→S7 post-eval) | implemented, unit-tested |
 | S9 Report generation & S10 HuggingFace publishing | implemented, unit-tested |
-| Gradio Space demo + article scaffold | Space reads tracked S9 data; article outline awaits Phase 4 |
+| Gradio Space demo + article | **Live Space** (https://huggingface.co/spaces/dubeydevansh/circuitgraft, static SDK) rendering the tracked S9 bundle; article filled in `docs/ARTICLE.md` from `report-1794803399` |
 
 ## Setup
 
